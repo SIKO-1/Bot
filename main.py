@@ -96,7 +96,6 @@ QUOTES = [
 
 # ================== تعبئة قاعدة البيانات تلقائيًا ==================
 def fill_db():
-    # تعبئة الأسئلة لكل لعبة
     for game in ALL_GAMES:
         for i in range(1, 51):  # 50 سؤال لكل لعبة
             q = f"سؤال {i} للعبة {game}؟"
@@ -113,7 +112,7 @@ def fill_db():
             pts_tf = random.randint(2,5)
             c.execute("INSERT INTO true_false_questions (game_name, question, answer, points) VALUES (?, ?, ?, ?)",
                       (game, qtf, ans_tf, pts_tf))
-    # تعبئة الغزل
+    # الغزل لرحمة
     poems_fusha = [f"بيت فصحى رقم {i} عن رحمة" for i in range(1,51)]
     poems_iraqi = [f"بيت عراقي رقم {i} عن رحمة" for i in range(1,51)]
     for p in poems_fusha:
@@ -139,7 +138,8 @@ def get_user(user):
         for g in ALL_GAMES[:10]:
             c.execute("INSERT INTO user_games (user_id, game_name) VALUES (?, ?)", (user.id, g))
         conn.commit()
-        return get_user(user)
+        c.execute("SELECT * FROM users WHERE id=?", (user.id,))
+        row = c.fetchone()
     return row
 
 def increment_messages(user_id):
@@ -165,16 +165,16 @@ def start(message):
     get_user(message.from_user)
     bot.send_message(message.chat.id, "👋 أهلًا بك في بوت كيرا الفخم!\nاكتب (اوامر) لعرض قائمة الأوامر")
 
-# ================== قائمة الأوامر ==================
+# ================== قائمة الأوامر نصية فخمة ==================
 @bot.message_handler(func=lambda m: m.text.lower() in ["اوامر", "الأوامر"])
 def commands(message):
-    keyboard = InlineKeyboardMarkup()
-    keyboard.add(InlineKeyboardButton("🎮 الألعاب", callback_data="games"))
-    keyboard.add(InlineKeyboardButton("💰 نقاطي", callback_data="mypoints"))
-    keyboard.add(InlineKeyboardButton("🆔 معلوماتي", callback_data="myid"))
-    if message.from_user.id == OWNER_ID:
-        keyboard.add(InlineKeyboardButton("🛠 لوحة التحكم", callback_data="dashboard"))
-    bot.send_message(message.chat.id, "📜 قائمة الأوامر:", reply_markup=keyboard)
+    text = """📜 قائمة الأوامر الفخمة:
+- 🎮 الألعاب: اكتب اسم اللعبة لتشغيلها
+- 💰 نقاطي: لعرض نقاطك وفلوسك
+- 🆔 ا / ايدي: لعرض معلوماتك
+- 🛠 لوحة التحكم (للمطور فقط)
+"""
+    bot.send_message(message.chat.id, text)
 
 # ================== ايدي فخم مزخرف ==================
 @bot.message_handler(func=lambda m: m.text.lower() in ["ا", "ايدي"])
@@ -196,7 +196,7 @@ def my_id_command(message):
 ⌁︙فلـوسـڪ↫ {user[5]}
 ⌁︙المستوى↫ {user[6]}
 ⌁︙الألعاب↫ {games_text}
-⌁︙الاقتباس↫ {quote}"""
+⌁︙اقتباس↫ {quote}"""
     if photos.total_count > 0:
         file_id = photos.photos[0][-1].file_id
         bot.send_photo(message.chat.id, file_id, caption=text)
@@ -210,36 +210,32 @@ def uncle_krar(message):
 
 @bot.message_handler(func=lambda m: m.text.lower() == "رحمه")
 def rahma_poems_func(message):
+    if message.from_user.id != OWNER_ID:
+        return  # مخفي لكل المستخدمين غير المطور
     c.execute("SELECT poem FROM rahma_poems")
     poems = c.fetchall()
     if not poems:
         bot.reply_to(message, "💌 لا يوجد شعر مضاف بعد!")
         return
-    keyboard = InlineKeyboardMarkup()
-    # أضف أول 5 أبيات
-    for i in range(min(5, len(poems))):
-        keyboard.add(InlineKeyboardButton(poems[i][0], callback_data=f"poem_{i}"))
-    keyboard.add(InlineKeyboardButton("المزيد 🔽", callback_data="more_poems"))
-    bot.send_message(message.chat.id, "💌 غزل رحمة:", reply_markup=keyboard)
+    text = "💌 غزل رحمة:\n" + "\n".join([p[0] for p in poems[:5]]) + "\n... المزيد بالضغط على أمر 'رحمه' مرة أخرى"
+    bot.send_message(message.chat.id, text)
 
-# ================== الألعاب ==================
-@bot.callback_query_handler(func=lambda call: call.data=="games")
-def show_games(call):
-    user_games = get_user_games(call.from_user.id)
-    keyboard = InlineKeyboardMarkup(row_width=2)
-    for game in ALL_GAMES:
-        label = f"{game} {'🔒' if game not in user_games else ''}"
-        keyboard.add(InlineKeyboardButton(label, callback_data=f"game_{game}"))
-    bot.send_message(call.message.chat.id, "🎮 قائمة الألعاب:", reply_markup=keyboard)
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("game_"))
-def start_game(call):
-    game_name = call.data[5:]
-    user_games = get_user_games(call.from_user.id)
+# ================== الألعاب مع InlineKeyboard فقط عند الحاجة ==================
+@bot.message_handler(func=lambda m: m.text in ALL_GAMES)
+def play_game(message):
+    user_games = get_user_games(message.from_user.id)
+    game_name = message.text
     if game_name not in user_games:
-        bot.answer_callback_query(call.id, "❌ هذه اللعبة مقفولة! افتحها أولاً")
+        bot.send_message(message.chat.id, "❌ هذه اللعبة مقفولة! افتحها أولاً")
         return
-    bot.send_message(call.message.chat.id, f"🎮 بدأت لعبة {game_name} (نظام نصي/اختيارات حسب اللعبة)")
+    # InlineKeyboard للألعاب التي تحتاج اختيار
+    if game_name in ["أسئلة", "صح/خطأ", "XO"]:
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("مثال خيار 1", callback_data="choice1"))
+        markup.add(InlineKeyboardButton("مثال خيار 2", callback_data="choice2"))
+        bot.send_message(message.chat.id, f"🎮 بدأت لعبة {game_name}:", reply_markup=markup)
+    else:
+        bot.send_message(message.chat.id, f"🎮 بدأت لعبة {game_name} (نصية)")
 
 # ================== تتبع الرسائل ==================
 @bot.message_handler(func=lambda m: True)

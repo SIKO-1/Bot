@@ -1,7 +1,7 @@
 import telebot
 import os
 
-# بنجيب التوكن من إعدادات ريلوي عشان يكون أمان
+# جلب التوكن من المتغيرات في ريلوي
 API_TOKEN = os.getenv('BOT_TOKEN')
 bot = telebot.TeleBot(API_TOKEN)
 
@@ -13,4 +13,6 @@ def send_welcome(message):
 def echo_all(message):
     bot.reply_to(message, f"أنت قلت: {message.text}")
 
-bot.infinity_polling()
+# تشغيل البوت
+if __name__ == "__main__":
+    bot.infinity_polling()

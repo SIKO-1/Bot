@@ -1,15 +1,9 @@
 import os
 import random
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters
-)
+import telebot
 
 TOKEN = os.getenv("BOT_TOKEN")
+bot = telebot.TeleBot(TOKEN)
 
 # ================== قاعدة البيانات ==================
 users = {}
@@ -56,116 +50,8 @@ shop_games = {
     "memory": 60,
 }
 
-# ================== أوامر ==================
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    u = get_user(update.effective_user)
-    await update.message.reply_text(
-        f"👋 هلا {u['name']}\n"
-        "بوت ألعاب مجنون 🎮🔥\n\n"
-        "اكتب: اوامر"
-    )
-
-async def commands(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📜 الأوامر:\n"
-        "ايدي\n"
-        "العاب\n"
-        "متجر\n"
-        "xo\n"
-        "اسئلة\n"
-        "صح\n"
-    )
-
-async def user_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    u = get_user(update.effective_user)
-    await update.message.reply_text(
-        f"👤 {u['name']}\n"
-        f"⭐ المستوى: {u['level']}\n"
-        f"🎯 النقاط: {u['points']}\n"
-        f"💰 الفلوس: {u['money']}\n"
-        f"🎮 الألعاب: {', '.join(u['games'])}"
-    )
-
-async def games_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    u = get_user(update.effective_user)
-    await update.message.reply_text(
-        "🎮 ألعابك:\n" + "\n".join(u["games"])
-    )
-
-async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = "🛒 المتجر:\n"
-    for g, p in shop_games.items():
-        text += f"{g} - {p} نقطة\n"
-    text += "\nللشراء: شراء اسم_اللعبة"
-    await update.message.reply_text(text)
-
-async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    u = get_user(update.effective_user)
-    parts = update.message.text.split()
-    if len(parts) < 2:
-        return
-    game = parts[1]
-    if game not in shop_games:
-        await update.message.reply_text("❌ لعبة غير موجودة")
-        return
-    if game in u["games"]:
-        await update.message.reply_text("⚠️ اللعبة مفتوحة")
-        return
-    price = shop_games[game]
-    if u["money"] < price:
-        await update.message.reply_text("💔 نقاطك ما تكفي")
-        return
-    u["money"] -= price
-    u["games"].append(game)
-    await update.message.reply_text(f"✅ اشتريت {game}")
-
-# ================== لعبة الأسئلة ==================
-async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = random.choice(quiz_questions)
-    context.user_data["quiz"] = q
-    text = f"❓ {q['q']}\n"
-    for i, o in enumerate(q["opts"]):
-        text += f"{i+1}- {o}\n"
-    await update.message.reply_text(text)
-
-async def quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if "quiz" not in context.user_data:
-        return
-    try:
-        ans = int(update.message.text) - 1
-    except:
-        return
-    q = context.user_data["quiz"]
-    if ans == q["a"]:
-        add_points(update.effective_user.id, 3)
-        await update.message.reply_text("✅ صحيح +3")
-    else:
-        await update.message.reply_text("❌ خطأ")
-    del context.user_data["quiz"]
-
-# ================== صح / خطأ ==================
-async def tf(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = random.choice(tf_questions)
-    context.user_data["tf"] = q
-    await update.message.reply_text(f"❓ {q[0]}\nصح / خطأ")
-
-async def tf_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if "tf" not in context.user_data:
-        return
-    q, correct = context.user_data["tf"]
-    user_ans = update.message.text == "صح"
-    if user_ans == correct:
-        add_points(update.effective_user.id, 3)
-        await update.message.reply_text("✅ صح +3")
-    else:
-        await update.message.reply_text("❌ خطأ")
-    del context.user_data["tf"]
-
-# ================== XO ضد البوت ==================
-async def xo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    board = [" "] * 9
-    context.user_data["xo"] = board
-    await update.message.reply_text("🎮 XO\nاختر رقم 1-9")
+# ================== XO ==================
+xo_games = {}
 
 def draw(board):
     return f"""
@@ -176,40 +62,126 @@ def draw(board):
 {board[6]}|{board[7]}|{board[8]}
 """
 
-async def xo_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if "xo" not in context.user_data:
+# ================== الأوامر ==================
+@bot.message_handler(commands=['start'])
+def start(message):
+    u = get_user(message.from_user)
+    bot.send_message(message.chat.id, f"👋 هلا {u['name']}\nبوت ألعاب مجنون 🎮🔥\nاكتب: اوامر")
+
+@bot.message_handler(func=lambda m: m.text == "اوامر")
+def commands_list(message):
+    bot.send_message(message.chat.id, "📜 الأوامر:\nايدي\nالعاب\nمتجر\nxo\nاسئلة\nصح")
+
+@bot.message_handler(func=lambda m: m.text == "ايدي")
+def user_info(message):
+    u = get_user(message.from_user)
+    bot.send_message(message.chat.id, f"👤 {u['name']}\n⭐ المستوى: {u['level']}\n🎯 النقاط: {u['points']}\n💰 الفلوس: {u['money']}\n🎮 الألعاب: {', '.join(u['games'])}")
+
+@bot.message_handler(func=lambda m: m.text == "العاب")
+def games_list(message):
+    u = get_user(message.from_user)
+    bot.send_message(message.chat.id, "🎮 ألعابك:\n" + "\n".join(u["games"]))
+
+@bot.message_handler(func=lambda m: m.text == "متجر")
+def shop_list(message):
+    text = "🛒 المتجر:\n"
+    for g, p in shop_games.items():
+        text += f"{g} - {p} نقطة\n"
+    text += "\nللشراء: كتابة 'شراء اسم_اللعبة'"
+    bot.send_message(message.chat.id, text)
+
+@bot.message_handler(func=lambda m: m.text.startswith("شراء "))
+def buy_game(message):
+    u = get_user(message.from_user)
+    parts = message.text.split()
+    if len(parts) < 2:
+        return
+    game = parts[1]
+    if game not in shop_games:
+        bot.send_message(message.chat.id, "❌ لعبة غير موجودة")
+        return
+    if game in u["games"]:
+        bot.send_message(message.chat.id, "⚠️ اللعبة مفتوحة")
+        return
+    price = shop_games[game]
+    if u["money"] < price:
+        bot.send_message(message.chat.id, "💔 نقاطك ما تكفي")
+        return
+    u["money"] -= price
+    u["games"].append(game)
+    bot.send_message(message.chat.id, f"✅ اشتريت {game}")
+
+# ================== أسئلة ==================
+@bot.message_handler(func=lambda m: m.text == "اسئلة")
+def quiz_start(message):
+    q = random.choice(quiz_questions)
+    users[message.from_user.id]["quiz"] = q
+    text = f"❓ {q['q']}\n"
+    for i, o in enumerate(q["opts"]):
+        text += f"{i+1}- {o}\n"
+    bot.send_message(message.chat.id, text)
+
+@bot.message_handler(func=lambda m: m.text in ["1","2","3"])
+def quiz_answer(message):
+    user_data = users.get(message.from_user.id, {})
+    if "quiz" not in user_data:
         return
     try:
-        m = int(update.message.text) - 1
+        ans = int(message.text)-1
     except:
         return
-    b = context.user_data["xo"]
-    if b[m] != " ":
+    q = user_data["quiz"]
+    if ans == q["a"]:
+        add_points(message.from_user.id, 3)
+        bot.send_message(message.chat.id, "✅ صحيح +3")
+    else:
+        bot.send_message(message.chat.id, "❌ خطأ")
+    del user_data["quiz"]
+
+# ================== صح / خطأ ==================
+@bot.message_handler(func=lambda m: m.text == "صح")
+def tf_true(message):
+    tf_answer_func(message, True)
+
+@bot.message_handler(func=lambda m: m.text == "خطأ")
+def tf_false(message):
+    tf_answer_func(message, False)
+
+def tf_answer_func(message, answer):
+    user_data = users.get(message.from_user.id, {})
+    if "tf" not in user_data:
+        q, correct = random.choice(tf_questions)
+        user_data["tf"] = (q, correct)
+        bot.send_message(message.chat.id, f"❓ {q}\nصح / خطأ")
         return
-    b[m] = "X"
-    free = [i for i in range(9) if b[i] == " "]
+    q, correct = user_data["tf"]
+    if answer == correct:
+        add_points(message.from_user.id, 3)
+        bot.send_message(message.chat.id, "✅ صح +3")
+    else:
+        bot.send_message(message.chat.id, "❌ خطأ")
+    del user_data["tf"]
+
+# ================== XO ==================
+@bot.message_handler(func=lambda m: m.text == "xo")
+def xo_start(message):
+    xo_games[message.from_user.id] = [" "]*9
+    bot.send_message(message.chat.id, "🎮 XO ضد البوت\nاكتب رقم من 1 إلى 9")
+
+@bot.message_handler(func=lambda m: m.text.isdigit() and 1 <= int(m.text) <= 9)
+def xo_move(message):
+    if message.from_user.id not in xo_games:
+        return
+    board = xo_games[message.from_user.id]
+    move = int(message.text)-1
+    if board[move] != " ":
+        return
+    board[move] = "X"
+    free = [i for i,v in enumerate(board) if v==" "]
     if free:
-        b[random.choice(free)] = "O"
-    await update.message.reply_text(draw(b))
+        board[random.choice(free)] = "O"
+    bot.send_message(message.chat.id, draw(board))
 
-# ================== تشغيل ==================
-app = ApplicationBuilder().token(TOKEN).build()
-
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^اوامر$"), commands))
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^ايدي$"), user_info))
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^العاب$"), games_list))
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^متجر$"), shop))
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^شراء "), buy))
-
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^اسئلة$"), quiz))
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^[1-3]$"), quiz_answer))
-
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^صح$|^خطأ$"), tf_answer))
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^صح$|^خطأ$"), tf))
-
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^xo$"), xo))
-app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^[1-9]$"), xo_move))
-
+# ================== تشغيل البوت ==================
 print("🔥 BOT IS RUNNING 🔥")
-app.run_polling()
+bot.infinity_polling()

@@ -1,72 +1,72 @@
-import os, sqlite3, telebot, requests, random
+import os, sqlite3, telebot, requests
 from telebot import types
 
-# --- الإعدادات الأساسية ---
+# --- الإعدادات ---
 TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
-DEV_ID = 5860391324  # ايدي الإمبراطور الخاص بك
+DEV_ID = 5860391324  # ايديك الخاص يا إمبراطور
 
-# --- قاعدة البيانات ---
-db = sqlite3.connect("kira_empire.db", check_same_thread=False)
-sql = db.cursor()
+# --- دالة الاتصال الآمن بقاعدة البيانات ---
+def get_db():
+    # استخدام check_same_thread=False لحل خطأ البرمجة في السجلات
+    conn = sqlite3.connect("kira_empire.db", check_same_thread=False)
+    return conn, conn.cursor()
+
+# إنشاء الجداول لأول مرة
+db_conn, sql = get_db()
 sql.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, points INTEGER DEFAULT 1000, role TEXT DEFAULT 'عضو')")
 sql.execute("CREATE TABLE IF NOT EXISTS custom_cmds (cmd_name TEXT PRIMARY KEY, cmd_reply TEXT)")
 sql.execute("CREATE TABLE IF NOT EXISTS memory (user_id INTEGER PRIMARY KEY, chat_log TEXT)")
-db.commit()
+db_conn.commit()
 
-# --- محرك الذكاء الاصطناعي المطور ---
+# --- محرك الذكاء الاصطناعي المستقر ---
 def ask_ai(text, user_id):
     try:
-        # جلب الذاكرة السابقة
-        sql.execute("SELECT chat_log FROM memory WHERE user_id = ?", (user_id,))
-        past = sql.fetchone()
+        conn, cursor = get_db()
+        cursor.execute("SELECT chat_log FROM memory WHERE user_id = ?", (user_id,))
+        past = cursor.fetchone()
         context = past[0] if past else ""
 
-        # استخدام API جديد ومستقر (Gemini Engine)
-        url = f"https://api.kenliejugar.com/free-ai/?text={context} {text}"
-        response = requests.get(url).json()
-        res = response.get("response", "")
+        # استخدام API جديد يدعم العربية والذاكرة
+        url = f"https://api.popcat.xyz/chatbot?msg={text}&owner=Kira&botname=KeraBot"
+        res = requests.get(url).json().get("response", "أنا معك يا إمبراطور، كيف أخدمك؟")
 
-        if not res: # خطة بديلة إذا كان الرد فارغاً
-             return "أمرك مطاع يا إمبراطور، ماذا تريدني أن أفعل الآن؟"
-
-        # تحديث الذاكرة
-        new_memory = (context + f" user: {text} bot: {res}")[-500:] 
-        sql.execute("INSERT OR REPLACE INTO memory VALUES (?, ?)", (user_id, new_memory))
-        db.commit()
+        # حفظ الذاكرة
+        new_memory = (context + f" user: {text} bot: {res}")[-500:]
+        cursor.execute("INSERT OR REPLACE INTO memory VALUES (?, ?)", (user_id, new_memory))
+        conn.commit()
+        conn.close()
         return res
     except:
-        return "أنا أسمعك يا إمبراطور، لكن يبدو أن هناك ضغطاً على خوادم الذكاء الاصطناعي. كيف يمكنني مساعدتك يدوياً؟"
+        return "أمرك مطاع يا إمبراطور، ماذا يدور في ذهنك؟"
 
-# --- معالج الرسائل الذكي ---
+# --- معالج الرسائل ---
 @bot.message_handler(func=lambda m: True)
-def handle_all(message):
+def handle_messages(message):
     uid = message.from_user.id
     text = message.text
     if not text: return
 
-    # 1. نظام "البرمجة بالشرح" للإمبراطور
-    if uid == DEV_ID and ("أضف أمر" in text or "اضف امر" in text):
-        # نطلب من الذكاء الاصطناعي استخراج الأمر والرد من شرحك
-        raw_data = ask_ai(f"استخرج من النص التالي 'الأمر' و 'الرد المناسب' وضعهما بصيغة (الاسم|الرد) فقط دون كلام إضافي: {text}", uid)
-        if "|" in raw_data:
-            name, reply = raw_data.split("|", 1)
-            sql.execute("INSERT OR REPLACE INTO custom_cmds VALUES (?, ?)", (name.strip(), reply.strip()))
-            db.commit()
-            return bot.reply_to(message, f"✅ علم وينفذ! تم إضافة أمر <b>{name.strip()}</b> بناءً على شرحك.")
+    conn, cursor = get_db()
 
-    # 2. فحص الأوامر المخصصة المحفوظة
-    sql.execute("SELECT cmd_reply FROM custom_cmds WHERE cmd_name = ?", (text,))
-    res = sql.fetchone()
+    # 1. ميزة الإضافة بالشرح (لك فقط)
+    if uid == DEV_ID and ("أضف أمر" in text or "اضف امر" in text):
+        ai_info = ask_ai(f"استخرج اسم الأمر والرد منه فقط بصيغة (الاسم|الرد): {text}", uid)
+        if "|" in ai_info:
+            name, reply = ai_info.split("|", 1)
+            cursor.execute("INSERT OR REPLACE INTO custom_cmds VALUES (?, ?)", (name.strip(), reply.strip()))
+            conn.commit()
+            conn.close()
+            return bot.reply_to(message, f"✅ أبشر! تم إضافة أمر: <b>{name.strip()}</b>")
+
+    # 2. فحص الأوامر المخصصة
+    cursor.execute("SELECT cmd_reply FROM custom_cmds WHERE cmd_name = ?", (text,))
+    res = cursor.fetchone()
+    conn.close()
     if res: return bot.send_message(message.chat.id, res[0])
 
-    # 3. الألعاب (مدمجة للاستقرار)
-    if text == "العاب":
-        return bot.reply_to(message, "🕹️ <b>الألعاب المتاحة:</b>\n🔓 عواصم\n🔓 دين\n🔓 ذكاء\n(اكتب اسم اللعبة للبدء)")
-
-    # 4. الرد بالذكاء الاصطناعي المتطور
+    # 3. الرد بالذكاء الاصطناعي
     bot.send_chat_action(message.chat.id, 'typing')
-    ai_reply = ask_ai(text, uid)
-    bot.reply_to(message, ai_reply)
+    bot.reply_to(message, ask_ai(text, uid))
 
 bot.infinity_polling(skip_pending=True)

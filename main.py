@@ -5,7 +5,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
 DEV_ID = 5860391324 
 
-# --- قاعدة البيانات ---
+# --- قاعدة بيانات الإمبراطورية ---
 def get_db():
     conn = sqlite3.connect("kira_empire.db", check_same_thread=False)
     return conn
@@ -14,44 +14,48 @@ db_conn = get_db()
 db_conn.execute("CREATE TABLE IF NOT EXISTS custom_cmds (cmd_name TEXT PRIMARY KEY, cmd_reply TEXT)")
 db_conn.commit()
 
-# --- محرك الذكاء الاصطناعي (رد مباشر) ---
+# --- محرك الذكاء الاصطناعي (Gemini Engine) ---
 def ask_ai(text):
     try:
-        # تقليل وقت المهلة (Timeout) لضمان عدم التأخير
-        url = f"https://api.simsimi.vn/v1/simtalk"
-        res = requests.post(url, data={'text': text, 'lc': 'ar'}, timeout=3).json()
-        return res.get("message", "أمرك مطاع.")
+        # استخدام API يدعم العربية بذكاء حقيقي
+        url = f"https://api.kenliejugar.com/free-ai/?text={text}"
+        res = requests.get(url, timeout=5).json()
+        output = res.get("response", "")
+        return output if output else "أمرك مطاع يا إمبراطور، ماذا تريد؟"
     except:
-        return "أسمعك يا إمبراطور، ماذا تريد؟"
+        return "أسمعك يا إمبراطور، جاري معالجة طلبك."
 
-# --- معالج الرسائل ---
+# --- معالج الرسائل الذكي ---
 @bot.message_handler(func=lambda m: True)
 def handle_messages(message):
     uid = message.from_user.id
     text = message.text
     if not text: return
 
-    # 1. أوامر الإضافة السريعة (اسم - رد)
-    if uid == DEV_ID and "-" in text and ("اضف" in text or "أضف" in text):
-        try:
-            clean_text = text.replace("اضف امر", "").replace("أضف أمر", "").strip()
-            name, reply = clean_text.split("-", 1)
-            conn = get_db()
-            conn.execute("INSERT OR REPLACE INTO custom_cmds VALUES (?, ?)", (name.strip(), reply.strip()))
-            conn.commit()
-            return bot.reply_to(message, f"✅ تم حفظ الأمر: {name.strip()}")
-        except: pass
+    # 1. ميزة "البرمجة بالشرح" (حصرياً للإمبراطور)
+    # مثال: "اضف امر هلو - الرد يكون هلا والله"
+    if uid == DEV_ID and ("اضف امر" in text or "أضف أمر" in text):
+        if "-" in text:
+            try:
+                clean = text.replace("اضف امر", "").replace("أضف أمر", "").strip()
+                cmd, reply = clean.split("-", 1)
+                conn = get_db()
+                conn.execute("INSERT OR REPLACE INTO custom_cmds VALUES (?, ?)", (cmd.strip(), reply.strip()))
+                conn.commit()
+                return bot.reply_to(message, f"✅ علم وينفذ! تم حفظ الأمر الجديد: <b>{cmd.strip()}</b>")
+            except:
+                return bot.reply_to(message, "⚠️ الصيغة: <code>اضف امر الاسم - الرد</code>")
 
-    # 2. فحص الأوامر المخصصة
+    # 2. فحص الأوامر المخصصة التي تمت برمجتها
     conn = get_db()
     res = conn.execute("SELECT cmd_reply FROM custom_cmds WHERE cmd_name = ?", (text,)).fetchone()
     if res: return bot.send_message(message.chat.id, res[0])
 
-    # 3. الرد الفوري بالذكاء الاصطناعي (تم حذف Typing Action)
-    bot.reply_to(message, ask_ai(text))
+    # 3. الدردشة بالذكاء الاصطناعي (رد فوري)
+    ai_reply = ask_ai(text)
+    bot.reply_to(message, ai_reply)
 
-# --- التشغيل النهائي ---
+# --- التشغيل مع تنظيف الرسائل القديمة ---
 if __name__ == "__main__":
     bot.remove_webhook()
-    # تجاهل الرسائل القديمة للبدء فوراً
-    bot.infinity_polling(skip_pending=True)
+    bot.infinity_polling(skip_pending=True) # لتجاوز كل الرسائل القديمة المعلقة

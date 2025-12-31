@@ -4,9 +4,9 @@ from telebot import types
 # --- الإعدادات الأساسية ---
 TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
-DEV_ID = 5860391324  # ايدي الإمبراطور
+DEV_ID = 5860391324  # ايدي الإمبراطور الخاص بك
 
-# --- قاعدة البيانات المتطورة ---
+# --- قاعدة البيانات ---
 db = sqlite3.connect("kira_empire.db", check_same_thread=False)
 sql = db.cursor()
 sql.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, points INTEGER DEFAULT 1000, role TEXT DEFAULT 'عضو')")
@@ -14,65 +14,59 @@ sql.execute("CREATE TABLE IF NOT EXISTS custom_cmds (cmd_name TEXT PRIMARY KEY, 
 sql.execute("CREATE TABLE IF NOT EXISTS memory (user_id INTEGER PRIMARY KEY, chat_log TEXT)")
 db.commit()
 
-# --- بنك الألعاب والأسئلة (مدمج لمنع الخطأ) ---
-GAMES_DATA = {
-    "عواصم": {"buy": 200, "win": 50, "q": "عاصمة العراق؟", "a": "بغداد"},
-    "دين": {"buy": 200, "win": 50, "q": "أطول سورة؟", "a": "البقرة"},
-    "ذكاء": {"buy": 200, "win": 50, "q": "حاصل 5+5؟", "a": "10"}
-}
-RANDOM_FREE_GAMES = list(GAMES_DATA.keys())[:2] # أول لعبتين مجانية دائماً لضمان الاستقرار
-
-# --- محرك الذكاء الاصطناعي (جيمناي) مع الذاكرة ---
+# --- محرك الذكاء الاصطناعي المطور ---
 def ask_ai(text, user_id):
     try:
+        # جلب الذاكرة السابقة
         sql.execute("SELECT chat_log FROM memory WHERE user_id = ?", (user_id,))
         past = sql.fetchone()
         context = past[0] if past else ""
-        
-        # ربط الـ API بالذكاء الاصطناعي
-        url = f"https://darkness.ashlynn.workers.dev/chat?prompt={context} {text}"
-        res = requests.get(url).json().get("response", "أمرك مطاع يا إمبراطور.")
-        
+
+        # استخدام API جديد ومستقر (Gemini Engine)
+        url = f"https://api.kenliejugar.com/free-ai/?text={context} {text}"
+        response = requests.get(url).json()
+        res = response.get("response", "")
+
+        if not res: # خطة بديلة إذا كان الرد فارغاً
+             return "أمرك مطاع يا إمبراطور، ماذا تريدني أن أفعل الآن؟"
+
         # تحديث الذاكرة
         new_memory = (context + f" user: {text} bot: {res}")[-500:] 
         sql.execute("INSERT OR REPLACE INTO memory VALUES (?, ?)", (user_id, new_memory))
         db.commit()
         return res
-    except: return "عقلي مشوش قليلاً، أعد المحاولة."
+    except:
+        return "أنا أسمعك يا إمبراطور، لكن يبدو أن هناك ضغطاً على خوادم الذكاء الاصطناعي. كيف يمكنني مساعدتك يدوياً؟"
 
-# --- المعالج الرئيسي لجميع الرسائل ---
+# --- معالج الرسائل الذكي ---
 @bot.message_handler(func=lambda m: True)
 def handle_all(message):
     uid = message.from_user.id
     text = message.text
     if not text: return
 
-    # 1. إضافة أمر بالشرح (للإمبراطور فقط)
+    # 1. نظام "البرمجة بالشرح" للإمبراطور
     if uid == DEV_ID and ("أضف أمر" in text or "اضف امر" in text):
-        raw_data = ask_ai(f"حول هذا الشرح لرد بصيغة (الاسم|الرد): {text}", uid)
+        # نطلب من الذكاء الاصطناعي استخراج الأمر والرد من شرحك
+        raw_data = ask_ai(f"استخرج من النص التالي 'الأمر' و 'الرد المناسب' وضعهما بصيغة (الاسم|الرد) فقط دون كلام إضافي: {text}", uid)
         if "|" in raw_data:
-            name, reply = raw_data.split("|")
+            name, reply = raw_data.split("|", 1)
             sql.execute("INSERT OR REPLACE INTO custom_cmds VALUES (?, ?)", (name.strip(), reply.strip()))
             db.commit()
-            return bot.reply_to(message, f"✅ تم استيعاب شرحك! إضافة أمر: <b>{name}</b>")
+            return bot.reply_to(message, f"✅ علم وينفذ! تم إضافة أمر <b>{name.strip()}</b> بناءً على شرحك.")
 
-    # 2. فحص الأوامر المخصصة
+    # 2. فحص الأوامر المخصصة المحفوظة
     sql.execute("SELECT cmd_reply FROM custom_cmds WHERE cmd_name = ?", (text,))
     res = sql.fetchone()
     if res: return bot.send_message(message.chat.id, res[0])
 
-    # 3. نظام الألعاب
+    # 3. الألعاب (مدمجة للاستقرار)
     if text == "العاب":
-        txt = "🎭 <b>إمبراطورية الألعاب</b>\n\n"
-        for g in GAMES_DATA: txt += f"🔓 {g}\n"
-        return bot.reply_to(message, txt)
-    
-    if text in GAMES_DATA:
-        q = GAMES_DATA[text]
-        return bot.reply_to(message, f"🕹️ <b>{text}:</b>\n\n❓ {q['q']}\n(أجب بالرد)")
+        return bot.reply_to(message, "🕹️ <b>الألعاب المتاحة:</b>\n🔓 عواصم\n🔓 دين\n🔓 ذكاء\n(اكتب اسم اللعبة للبدء)")
 
-    # 4. الرد بالذكاء الاصطناعي (إذا لم يكن مما سبق)
+    # 4. الرد بالذكاء الاصطناعي المتطور
     bot.send_chat_action(message.chat.id, 'typing')
-    bot.reply_to(message, ask_ai(text, uid))
+    ai_reply = ask_ai(text, uid)
+    bot.reply_to(message, ai_reply)
 
 bot.infinity_polling(skip_pending=True)

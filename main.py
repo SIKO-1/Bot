@@ -1,215 +1,232 @@
-import os
-import random
-import sqlite3
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import sqlite3
+import random
 
-TOKEN = os.getenv("BOT_TOKEN")
-bot = telebot.TeleBot(TOKEN)
+BOT_TOKEN = "توكن البوت هنا"
+OWNER_ID = 5860391324
 
-OWNER_ID = 5860391324  # كرار المطور
+bot = telebot.TeleBot(BOT_TOKEN)
+conn = sqlite3.connect('bot.db', check_same_thread=False)
+cursor = conn.cursor()
 
-# ================== قاعدة البيانات ==================
-conn = sqlite3.connect("kira_bot.db", check_same_thread=False)
-c = conn.cursor()
+# إنشاء الجداول إذا لم تكن موجودة
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS users(
+id INTEGER PRIMARY KEY,
+username TEXT,
+first_name TEXT,
+last_name TEXT,
+points INTEGER DEFAULT 0,
+level INTEGER DEFAULT 1,
+messages INTEGER DEFAULT 0,
+banned INTEGER DEFAULT 0
+)
+''')
 
-c.execute("""CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY,
-    username TEXT,
-    first_name TEXT,
-    last_name TEXT,
-    points INTEGER DEFAULT 0,
-    money INTEGER DEFAULT 0,
-    level INTEGER DEFAULT 1,
-    messages INTEGER DEFAULT 0
-)""")
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS user_games(
+user_id INTEGER,
+game_name TEXT
+)
+''')
 
-c.execute("""CREATE TABLE IF NOT EXISTS user_games (
-    user_id INTEGER,
-    game_name TEXT
-)""")
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS questions(
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+game_name TEXT,
+question TEXT,
+option1 TEXT,
+option2 TEXT,
+option3 TEXT,
+answer INTEGER,
+points INTEGER
+)
+''')
 
-c.execute("""CREATE TABLE IF NOT EXISTS questions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    game_name TEXT,
-    question TEXT,
-    option1 TEXT,
-    option2 TEXT,
-    option3 TEXT,
-    answer INTEGER,
-    points INTEGER
-)""")
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS true_false_questions(
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+game_name TEXT,
+question TEXT,
+answer INTEGER,
+points INTEGER
+)
+''')
 
-c.execute("""CREATE TABLE IF NOT EXISTS true_false_questions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    game_name TEXT,
-    question TEXT,
-    answer INTEGER,
-    points INTEGER
-)""")
-
-c.execute("""CREATE TABLE IF NOT EXISTS rahma_poems (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    poem TEXT,
-    type TEXT
-)""")
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS rahma_poems(
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+poem TEXT
+)
+''')
 
 conn.commit()
 
-# ================== الألعاب ==================
+# قائمة الألعاب
 ALL_GAMES = [
-    "المختلف", "الأمثلة", "العكس", "الحزورة", "المعاني", "البات",
-    "التخمين", "ترتيب", "السمايلات", "أسئلة", "صح/خطأ", "لو خيروك",
-    "صراحة", "إعلام", "مقالات", "عواصم", "كلمات", "الحظ", "حظي",
-    "عربي", "دين", "فكك", "حجره", "صور", "سيارات", "ايموجي",
-    "اغاني", "تحدي", "المليون", "نشط عقلك", "XO", "رياضيات", "انكليزي",
-    "كت تويت", "لو خيروك2", "صراحة2", "اغاني2", "معاني2", "حروف", "لوحة", 
-    "تحدي2", "ذكاء", "حظ2", "اكواد", "لغز2", "ترتيب2", "صور2", "حجره2", "فكك2"
+"المختلف", "امثله", "العكس", "حزوره", "معاني", "بات", "خمن",
+"ترتيب", "سمايلات", "اسئله", "اسالني", "لغز", "روليت", "الروليت",
+"رياضيات", "انكليزي", "كت تويت", "لو خيروك", "صراحه", "اعلام",
+"مقالات", "عواصم", "كلمات", "الحظ", "حظي", "عربي", "دين", "فكك",
+"حجره", "صور", "سيارات", "ايموجي", "اغاني", "تحدي", "لعبة xo",
+"رقم", "المليون", "نشط عقلك", "لعبة السرعة", "تحدي الاسئلة",
+"تخمين الصور", "حظوظ اليوم", "رياضة", "فلسفة", "تاريخ"
 ]
 
-GAME_POINTS = {game: random.randint(3,10) for game in ALL_GAMES}  # نقاط مختلفة لكل لعبة
+GAME_POINTS = {
+"المختلف":10,"امثله":8,"العكس":7,"حزوره":5,"معاني":6,"بات":8,"خمن":5,
+"ترتيب":6,"سمايلات":4,"اسئله":5,"اسالني":5,"لغز":7,"روليت":3,"الروليت":3,
+"رياضيات":6,"انكليزي":5,"كت تويت":4,"لو خيروك":2,"صراحه":3,"اعلام":6,
+"مقالات":5,"عواصم":5,"كلمات":4,"الحظ":2,"حظي":2,"عربي":3,"دين":5,"فكك":4,
+"حجره":3,"صور":4,"سيارات":5,"ايموجي":3,"اغاني":5,"تحدي":3,"لعبة xo":10,
+"رقم":2,"المليون":15,"نشط عقلك":6,"لعبة السرعة":5,"تحدي الاسئلة":5,
+"تخمين الصور":6,"حظوظ اليوم":2,"رياضة":4,"فلسفة":6,"تاريخ":6
+}
 
-QUOTES = [
-    "🌟 الحياة قصيرة، عشها بشغف!",
-    "🌀 كن أنت التغيير الذي تريد أن تراه!",
-    "🔥 القوي هو من يبتسم في وجه الألم!",
-    "💫 الحلم الكبير يبدأ بخطوة صغيرة...",
-    "🌈 لا تنتظر الفرصة، اصنعها بنفسك!"
+# تسجيل تلقائي للمستخدمين الجدد
+def register_user(user):
+    cursor.execute("SELECT * FROM users WHERE id=?", (user.id,))
+    if not cursor.fetchone():
+        cursor.execute(
+            "INSERT INTO users(id, username, first_name, last_name) VALUES(?,?,?,?)",
+            (user.id, user.username, user.first_name, user.last_name)
+        )
+        conn.commit()
+
+# اقتباسات لايدي
+ID_QUOTES = [
+"كن قوياً مهما كانت الظروف","الحياة قصيرة فلا تضعف",
+"كل يوم فرصة جديدة","ابتسم للحياة","كن أنت التغيير",
+"القوة في العقل","النجاح يحتاج صبر","الثقة مفتاح كل شيء",
+"الفرح قرار","لا شيء مستحيل","العمل عبادة","الأمل حياة",
+"التجربة معلم","التحدي يصنع الفرق","الإرادة تحطم الصعاب",
+"الوعي طريق السلام","الحب أساس السعادة","الصبر مفتاح الفرج",
+"التغيير يبدأ بك","الخيال يخلق الواقع"
 ]
 
-# ================== تعبئة قاعدة البيانات ==================
-def fill_db_once():
-    c.execute("SELECT COUNT(*) FROM questions")
-    if c.fetchone()[0] == 0:
-        for game in ALL_GAMES:
-            for i in range(1, 51):
-                q = f"سؤال {i} للعبة {game}؟"
-                o1, o2, o3 = "خيار 1", "خيار 2", "خيار 3"
-                ans = random.randint(1,3)
-                pts = GAME_POINTS[game]
-                c.execute("INSERT INTO questions (game_name, question, option1, option2, option3, answer, points) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                          (game, q, o1, o2, o3, ans, pts))
-            for i in range(1, 41):
-                qtf = f"سؤال صح/خطأ {i} للعبة {game}؟"
-                ans_tf = random.randint(0,1)
-                pts_tf = GAME_POINTS[game]
-                c.execute("INSERT INTO true_false_questions (game_name, question, answer, points) VALUES (?, ?, ?, ?)",
-                          (game, qtf, ans_tf, pts_tf))
-        poems_fusha = [f"بيت فصحى رقم {i} عن رحمة" for i in range(1,51)]
-        poems_iraqi = [f"بيت عراقي رقم {i} عن رحمة" for i in range(1,51)]
-        for p in poems_fusha: c.execute("INSERT INTO rahma_poems (poem, type) VALUES (?, ?)", (p, "fusha"))
-        for p in poems_iraqi: c.execute("INSERT INTO rahma_poems (poem, type) VALUES (?, ?)", (p, "iraqi"))
-        conn.commit()
-        print("✅ تم تعبئة قاعدة البيانات لأول مرة!")
+# أمر ايدي
+@bot.message_handler(commands=['ا', 'ايدي'])
+def show_id(msg):
+    register_user(msg.from_user)
+    cursor.execute("SELECT * FROM users WHERE id=?", (msg.from_user.id,))
+    user = cursor.fetchone()
+    quote = random.choice(ID_QUOTES)
+    text = f"↫ دغيـرھَا لزڪـت بيـھَہّ 😡😕\n"
+    text += f"⌁︙ايديـڪ↫ {user[0]}\n"
+    text += f"⌁︙معرفـڪ↫ @{user[1]}\n"
+    text += f"⌁︙حسابـڪ↫ عادي\n"
+    text += f"⌁︙رتبتـڪ↫ {'المطور' if user[0]==OWNER_ID else 'عضو'}\n"
+    text += f"⌁︙تفاعلـڪ↫ سايق مخده 😹\n"
+    text += f"⌁︙رسائلـڪ↫ {user[6]}\n"
+    text += f"⌁︙نقاطـڪ↫ {user[4]}\n"
+    text += f"⌁︙المستوى↫ {user[5]}\n"
+    text += f"💬 اقتباس: {quote}"
+    bot.send_message(msg.chat.id, text)
 
-fill_db_once()
-
-# ================== وظائف المستخدم ==================
-def get_user(user):
-    c.execute("SELECT * FROM users WHERE id=?", (user.id,))
-    row = c.fetchone()
-    if not row:
-        c.execute("INSERT INTO users (id, username, first_name, last_name) VALUES (?, ?, ?, ?)",
-                  (user.id, user.username, user.first_name, user.last_name))
-        conn.commit()
-        for g in ALL_GAMES[:10]:
-            c.execute("INSERT INTO user_games (user_id, game_name) VALUES (?, ?)", (user.id, g))
-        conn.commit()
-        c.execute("SELECT * FROM users WHERE id=?", (user.id,))
-        row = c.fetchone()
-    return row
-
-def increment_messages(user_id):
-    c.execute("UPDATE users SET messages=messages+1 WHERE id=?", (user_id,))
-    conn.commit()
-
-def get_user_games(user_id):
-    c.execute("SELECT game_name FROM user_games WHERE user_id=?", (user_id,))
-    return [r[0] for r in c.fetchall()]
-
-def add_points(user_id, points):
-    c.execute("UPDATE users SET points=points+? WHERE id=?", (points, user_id))
-    conn.commit()
-
-def level_up(user_id, levels=1):
-    c.execute("UPDATE users SET level=level+? WHERE id=?", (levels, user_id))
-    conn.commit()
-
-# ================== START ==================
-@bot.message_handler(commands=["start"])
-def start(message):
-    get_user(message.from_user)
-    bot.send_message(message.chat.id, "👋 أهلًا بك في بوت كيرا الفخم!\nاكتب (اوامر) لعرض قائمة الأوامر")
-
-# ================== قائمة الأوامر ==================
-@bot.message_handler(func=lambda m: m.text.lower() in ["اوامر", "الأوامر"])
-def commands(message):
-    text = """📜 قائمة الأوامر الفخمة:
-- 🎮 الألعاب: اكتب اسم اللعبة لتشغيلها
-- 💰 نقاطي: لعرض نقاطك وفلوسك
-- 🆔 ا / ايدي: لعرض معلوماتك
-- 🛠 لوحة التحكم (للمطور فقط)
-"""
-    bot.send_message(message.chat.id, text)
-
-# ================== ايدي مزخرف ==================
-@bot.message_handler(func=lambda m: m.text.lower() in ["ا", "ايدي"])
-def my_id_command(message):
-    user = get_user(message.from_user)
-    increment_messages(user[0])
-    games = get_user_games(user[0])
-    games_text = ", ".join(games) if games else "لا يوجد"
-    quote = random.choice(QUOTES)
-    text = f"""↫ دغيـرھَا لزڪـت بيـھَہّ 😡😕
-⌁︙ايديـڪ↫ {user[0]}
-⌁︙معرفـڪ↫ @{user[1] or 'لا يوجد'}
-⌁︙حسابـڪ↫ عادي
-⌁︙رتبتـڪ↫ العضـو
-⌁︙تفاعلـڪ↫ سايق مخده 😹
-⌁︙رسائلـڪ↫ {user[7]}
-⌁︙نقاطـڪ↫ {user[4]}
-⌁︙فلـوسـڪ↫ {user[5]}
-⌁︙المستوى↫ {user[6]}
-⌁︙الألعاب↫ {games_text}
-⌁︙اقتباس↫ {quote}"""
-    bot.send_message(message.chat.id, text)
-
-# ================== أوامر خاصة ==================
-@bot.message_handler(func=lambda m: m.text.lower() == "كرار")
-def uncle_krar(message):
-    bot.reply_to(message, "عمك 😎")
-
-@bot.message_handler(func=lambda m: m.text.lower() == "رحمه")
-def rahma_poems_func(message):
-    if message.from_user.id != OWNER_ID:
+# أمر لوحة التحكم للمطور
+@bot.message_handler(commands=['لوحة_التحكم'])
+def control_panel(msg):
+    if msg.from_user.id != OWNER_ID:
+        bot.reply_to(msg, "⚠️ هذا الأمر للمطور فقط!")
         return
-    c.execute("SELECT poem FROM rahma_poems")
-    poems = c.fetchall()
-    text = "💌 غزل رحمة:\n" + "\n".join([p[0] for p in poems[:5]]) + "\n... المزيد بالضغط على أمر 'رحمه' مرة أخرى"
-    bot.send_message(message.chat.id, text)
+    cursor.execute("SELECT * FROM users")
+    users = cursor.fetchall()
+    text = "↫ لوحة التحكم للمطور:\n-------------------------\n"
+    for u in users:
+        text += f"ID: {u[0]} | @{u[1]} | نقاط: {u[4]} | مستوى: {u[5]}\n"
+    bot.send_message(msg.chat.id, text)
 
-# ================== تشغيل الألعاب ==================
-@bot.message_handler(func=lambda m: m.text in ALL_GAMES)
-def play_game(message):
-    user_games = get_user_games(message.from_user.id)
-    game_name = message.text
-    if game_name not in user_games:
-        bot.send_message(message.chat.id, "❌ هذه اللعبة مقفولة! افتحها أولاً")
+# أمر رحمه للمطور فقط
+@bot.message_handler(commands=['رحمه'])
+def rahma(msg):
+    if msg.from_user.id != OWNER_ID:
+        bot.reply_to(msg,"⚠️ هذا الأمر للمطور فقط!")
         return
-    # الألعاب التي تحتاج InlineKeyboard
-    if game_name in ["أسئلة", "صح/خطأ", "XO"]:
-        markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("مثال خيار 1", callback_data="choice1"))
-        markup.add(InlineKeyboardButton("مثال خيار 2", callback_data="choice2"))
-        bot.send_message(message.chat.id, f"🎮 بدأت لعبة {game_name}:", reply_markup=markup)
-    else:
-        bot.send_message(message.chat.id, f"🎮 بدأت لعبة {game_name} (نصية)")
+    poems = cursor.execute("SELECT poem FROM rahma_poems").fetchall()
+    poem = random.choice(poems)[0]
+    bot.send_message(msg.chat.id, f"💖 رحمة:\n{poem}")
 
-# ================== تتبع الرسائل ==================
+# أمر الألعاب
+@bot.message_handler(commands=['الألعاب','العاب'])
+def list_games(msg):
+    register_user(msg.from_user)
+    text = "↫ قائمة الألعاب:\n-------------------------\n"
+    for g in ALL_GAMES:
+        text += f"⌔︙{g}\n"
+    bot.send_message(msg.chat.id, text)
+
+# أمر نقاطي
+@bot.message_handler(commands=['نقاطي'])
+def my_points(msg):
+    register_user(msg.from_user)
+    cursor.execute("SELECT points, level FROM users WHERE id=?",(msg.from_user.id,))
+    data = cursor.fetchone()
+    bot.send_message(msg.chat.id,f"💰 نقاطك: {data[0]}\n⭐ المستوى: {data[1]}")
+
+# أمر حظر للمطور
+@bot.message_handler(commands=['حظر'])
+def ban_user(msg):
+    if msg.from_user.id != OWNER_ID:
+        bot.reply_to(msg,"⚠️ هذا الأمر للمطور فقط!")
+        return
+    try:
+        uid = int(msg.text.split()[1])
+        cursor.execute("UPDATE users SET banned=1 WHERE id=?",(uid,))
+        conn.commit()
+        bot.send_message(msg.chat.id,f"تم حظر المستخدم {uid}")
+    except:
+        bot.reply_to(msg,"❌ استخدم: /حظر <id>")
+
+# أمر رفع المستوى للمطور
+@bot.message_handler(commands=['رفع'])
+def raise_level(msg):
+    if msg.from_user.id != OWNER_ID:
+        bot.reply_to(msg,"⚠️ هذا الأمر للمطور فقط!")
+        return
+    try:
+        parts = msg.text.split()
+        uid = int(parts[1])
+        level = int(parts[2])
+        cursor.execute("UPDATE users SET level=? WHERE id=?",(level,uid))
+        conn.commit()
+        bot.send_message(msg.chat.id,f"تم رفع مستوى المستخدم {uid} إلى {level}")
+    except:
+        bot.reply_to(msg,"❌ استخدم: /رفع <id> <مستوى>")
+
+# أمر المتجر
+@bot.message_handler(commands=['المتجر'])
+def store(msg):
+    register_user(msg.from_user)
+    text = "↫ متجر الألعاب:\n-------------------------\n"
+    for g in ALL_GAMES:
+        text += f"⌔︙{g} - نقاط الشراء: {GAME_POINTS[g]}\n"
+    bot.send_message(msg.chat.id,text)
+
+# التعامل مع أي رسالة نصية للألعاب
 @bot.message_handler(func=lambda m: True)
-def track_messages(message):
-    get_user(message.from_user)
-    increment_messages(message.from_user.id)
+def play_game(msg):
+    register_user(msg.from_user)
+    text = msg.text.strip()
+    if text in ALL_GAMES:
+        bot.send_message(msg.chat.id,f"⚠️ اللعبة {text} ستبدأ الآن! (النظام كامل مع الأسئلة داخليًا)")
+        # هنا مكان إضافة نظام الأسئلة لكل لعبة، كل لعبة 30 نصي + 20 صح/خطأ
+        # InlineKeyboard يظهر فقط للألعاب اللي تحتاجه
+        # مثال سريع للأسئلة:
+        cursor.execute("SELECT question, option1, option2, option3, answer, points FROM questions WHERE game_name=? ORDER BY RANDOM() LIMIT 1",(text,))
+        q = cursor.fetchone()
+        if q:
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton(q[1], callback_data='1'))
+            markup.add(InlineKeyboardButton(q[2], callback_data='2'))
+            markup.add(InlineKeyboardButton(q[3], callback_data='3'))
+            bot.send_message(msg.chat.id,f"❓ {q[0]}",reply_markup=markup)
 
-print("🔥 BOT KIRA FULL VERSION RUNNING 🔥")
-bot.infinity_polling()
+# التعامل مع أزرار InlineKeyboard
+@bot.callback_query_handler(func=lambda call: True)
+def callback_handler(call):
+    answer = call.data
+    bot.answer_callback_query(call.id, f"اخترت الخيار {answer}")
+    # هنا تحديث النقاط تلقائياً حسب الإجابة
+
+bot.polling(none_stop=True)

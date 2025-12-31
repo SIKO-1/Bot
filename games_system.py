@@ -1,15 +1,18 @@
 import random
 from telebot import types
 
-# بيانات الـ 25 لعبة
+# تأكد من وجود ألعاب كافية (أو سيختار الكود المتاح فقط)
 GAMES_DATA = {
     "عواصم": {"buy": 200, "win": 50, "type": "buttons"},
     "رياضة": {"buy": 200, "win": 50, "type": "buttons"},
     "دين": {"buy": 200, "win": 50, "type": "text"},
-    # ... (تكملة الـ 25 لعبة بنفس النمط)
+    "ذكاء": {"buy": 200, "win": 50, "type": "buttons"},
+    "تحدي": {"buy": 200, "win": 50, "type": "text"},
 }
 
-RANDOM_FREE_GAMES = random.sample(list(GAMES_DATA.keys()), 5)
+# إصلاح خطأ الانهيار: اختيار 5 ألعاب أو أقل إذا لم تتوفر
+count = min(len(GAMES_DATA), 5)
+RANDOM_FREE_GAMES = random.sample(list(GAMES_DATA.keys()), count)
 
 QUESTIONS = {g: [{"q": f"سؤال في {g}؟", "o": ["أ", "ب"], "a": "أ"}] for g in GAMES_DATA}
 
@@ -22,8 +25,7 @@ def get_games_menu(unlocked_list):
 
 def start_game_logic(bot, message, game_name):
     q = random.choice(QUESTIONS[game_name])
-    reward = GAMES_DATA[game_name]["win"]
     markup = types.InlineKeyboardMarkup()
-    for o in q["o"]:
-        markup.add(types.InlineKeyboardButton(o, callback_data=f"ans|{o}|{q['a']}|{reward}"))
+    for o in q.get("o", ["صح"]):
+        markup.add(types.InlineKeyboardButton(o, callback_data=f"ans|{o}|{q['a']}"))
     bot.send_message(message.chat.id, f"🎮 {game_name}:\n\n❓ {q['q']}", reply_markup=markup)

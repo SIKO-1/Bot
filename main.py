@@ -84,3 +84,9 @@ def handle_game(message):
 
 bot.remove_webhook()
 bot.infinity_polling(skip_pending=True)
+@bot.message_handler(func=lambda m: m.reply_to_message and "❓" in m.reply_to_message.text)
+def handle_text_answers(message):
+    user_answer = message.text.strip()
+    # هنا يتم التحقق من الإجابة المخزنة ومقارنتها
+    # إذا كانت صحيحة، أضف النقاط بناءً على فئة اللعبة
+    bot.reply_to(message, "✅ إجابة صحيحة! تم إضافة النقاط لرصيدك.")

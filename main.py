@@ -1,6 +1,7 @@
 import os
 import importlib
 import logging
+import asyncio
 from telegram.ext import ApplicationBuilder
 
 # إعداد السجلات لمتابعة العمليات
@@ -14,32 +15,34 @@ def main():
     TOKEN = os.environ.get("BOT_TOKEN")
     
     if not TOKEN:
-        print("خطأ: لم يتم العثور على BOT_TOKEN في المتغيرات!")
+        print("❌ خطأ: لم يتم العثور على BOT_TOKEN في المتغيرات!")
         return
 
+    # بناء التطبيق
     app = ApplicationBuilder().token(TOKEN).build()
 
-    # حلقة ذكية للبحث في المجلد عن ملفات الأوامر
+    # حلقة البحث عن ملفات الأوامر
     for file in os.listdir():
-        # يبحث عن الملفات التي تبدأ بـ cmd_ وتنهي بـ .py
         if file.startswith("cmd_") and file.endswith(".py"):
-            module_name = file[:-3] # حذف .py من الاسم
+            module_name = file[:-3]
             try:
-                # استيراد الملف برمجياً
+                # استيراد الملف
                 module = importlib.import_module(module_name)
                 
-                # البحث عن أي متغير ينتهي بـ _handler داخل الملف
-                # هذا يسمح لك بوضع عدة أوامر في ملف واحد
+                # البحث عن أي متغير ينتهي بـ _handler
+                found_any = False
                 for attr in dir(module):
                     if attr.endswith("_handler"):
                         handler = getattr(module, attr)
                         app.add_handler(handler)
+                        found_any = True
                 
-                print(f"✅ تم تحميل الملف بنجاح: {file}")
+                if found_any:
+                    print(f"✅ تم تحميل: {file}")
             except Exception as e:
-                print(f"❌ فشل تحميل الملف {file}: {e}")
+                print(f"❌ مشكلة في ملف {file}: {e}")
 
-    print("🚀 إمبراطورية كرار تعمل الآن...")
+    print("🚀 إمبراطورية كرار انطلقت الآن...")
     app.run_polling()
 
 if __name__ == '__main__':

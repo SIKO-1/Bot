@@ -1,7 +1,5 @@
-from bot import bot
+import telebot
+import os
 
-# ربط الملفات
-import hello
-
-# تشغيل البوت
-bot.infinity_polling()
+TOKEN = os.getenv("BOT_TOKEN")
+bot = telebot.TeleBot(TOKEN)

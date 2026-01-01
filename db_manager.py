@@ -1,27 +1,31 @@
-import json, os
+import json
+import os
 
 DB_FILE = "users_data.json"
 
 def load_data():
+    if not os.path.exists(DB_FILE):
+        return {}
     try:
-        if not os.path.exists(DB_FILE): return {}
         with open(DB_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception as e:
-        print(f"❌ Error Loading DB: {e}")
+    except:
         return {}
 
 def save_data(data):
-    try:
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-    except Exception as e:
-        print(f"❌ Error Saving DB: {e}")
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_mode=False)
 
 def get_user(user_id):
     data = load_data()
-    uid = str(user_id)
-    if uid not in data:
-        data[uid] = {"points": 0, "level": 1, "rank": "مبتدئ", "exp": 0}
+    user_id = str(user_id)
+    if user_id not in data:
+        data[user_id] = {
+            "points": 0,
+            "level": 1,
+            "exp": 0,
+            "rank": "متدرب",
+            "last_gift_time": None
+        }
         save_data(data)
-    return data[uid]
+    return data[user_id]

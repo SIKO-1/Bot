@@ -1,7 +1,9 @@
-# لا تغير شيئاً هنا، انسخ الكود كما هو
+import telebot
+
 def register_handlers(bot):
 
-    @bot.message_handler(commands=['start', 'الاوامر', 'help'])
+    # هذا الهاندلر يراقب الكلمات العادية (بدون /)
+    @bot.message_handler(func=lambda m: m.text in ['العاب', 'الألعاب', 'الالعاب', 'لعبات', 'لعبة'])
     def send_grand_menu(m):
         # القائمة الفخمة والمستقرة
         menu_text = (
@@ -31,7 +33,12 @@ def register_handlers(bot):
         )
         
         try:
-            bot.send_message(m.chat.id, menu_text, parse_mode="Markdown")
+            bot.reply_to(m, menu_text, parse_mode="Markdown")
         except Exception as e:
-            # في حال وجود مشكلة في الماركدوان يرسلها كنص عادي
+            # احتياطاً لو في مشكلة بالماركدوان
             bot.send_message(m.chat.id, menu_text.replace("*", ""))
+
+    # إذا أردت أن يعمل مع /start أيضاً (اختياري)
+    @bot.message_handler(commands=['start', 'الاوامر'])
+    def start_cmd(m):
+        send_grand_menu(m)

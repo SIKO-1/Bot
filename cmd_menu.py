@@ -21,5 +21,7 @@ async def menu_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # ملاحظة: لم نضع 'else' هنا، لكي نترك المجال للملفات الأخرى أن تعمل
 
-# تعديل الفلتر ليكون دقيقاً جداً
-menu_display_handler = MessageHandler(filters.Text(["اوامر", "الأوامر", "الاوامر"]), menu_text_handler)
+from telegram.ext import filters # تأكد من وجود هذا الاستيراد في الأعلى
+
+# التعديل للسطر الأخير:
+menu_display_handler = MessageHandler(filters.Text(["اوامر", "الأوامر"]), menu_text_handler)

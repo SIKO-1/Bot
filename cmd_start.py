@@ -5,5 +5,5 @@ from telegram.ext import CommandHandler, ContextTypes
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("أهلاً بك! أنا العقل المدبر.. تم تفعيل الربط التلقائي بنجاح ✅")
 
-# ملاحظة: يجب أن يكون اسم المتغير 'handler' لكي يتعرف عليه ملف main.py
-handler = CommandHandler("start", start_command)
+# بدلاً من handler = ...
+start_handler = CommandHandler("start", start_command)

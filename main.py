@@ -1,6 +1,7 @@
-import telebot
-import menu
-import os
+from bot import bot
 
-TOKEN = os.getenv("BOT_TOKEN")
-bot = telebot.TeleBot(TOKEN)
+import hello
+import menu
+import madness
+
+bot.infinity_polling()

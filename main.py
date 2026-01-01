@@ -14,4 +14,4 @@ register_gift_handler(bot)
 def send_welcome(message):
     bot.reply_to(message, "✅ البوت يعمل بنظام الذاكرة الدائمة!")
 
-bot.polling(none_stop=True)
+bot.polling(none_stop=True, timeout=60)

@@ -1,42 +1,39 @@
 import random
-from datetime import datetime, timedelta
 from telegram import Update
-from telegram.ext import CommandHandler, ContextTypes
+from telegram.ext import MessageHandler, filters, ContextTypes
 import db_manager
 
-# الذاكرة المؤقتة للوقت
-last_gift_time = {}
-
-async def gift_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # التحقق من وجود رسالة
-    if not update.message: return
+async def gift_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # التأكد من وجود رسالة نصية
+    if not update.message or not update.message.text:
+        return
     
-    user_id = update.message.from_user.id
-    now = datetime.now()
-
-    # 1. فحص الوقت (24 ساعة)
-    if user_id in last_gift_time:
-        time_diff = now - last_gift_time[user_id]
-        if time_diff < timedelta(hours=24):
-            remaining = timedelta(hours=24) - time_diff
-            hours = remaining.seconds // 3600
-            minutes = (remaining.seconds % 3600) // 60
-            await update.message.reply_text(f"⏳ هديتك القادمة بعد {hours} ساعة و {minutes} دقيقة.")
-            return
-
-    # 2. تحديث البيانات
-    data = db_manager.load_data()
-    user = db_manager.get_user(user_id)
+    user_msg = update.message.text.strip()
     
-    gift_points = random.randint(50, 300)
-    user["points"] += gift_points
-    
-    # حفظ البيانات
-    data[str(user_id)] = user
-    db_manager.save_data(data)
-    last_gift_time[user_id] = now
-    
-    await update.message.reply_text(f"🎁 مبروك! حصلت على {gift_points} نقطة.\n💰 رصيدك الآن: {user['points']}")
+    # الرد فقط إذا كانت الكلمة هي "هدية"
+    if user_msg == "هدية":
+        user_id = update.message.from_user.id
+        
+        # تحميل البيانات
+        data = db_manager.load_data()
+        user = db_manager.get_user(user_id)
+        
+        # توليد نقاط عشوائية (حد أقصى 300)
+        points_win = random.randint(50, 300)
+        user["points"] += points_win
+        
+        # حفظ البيانات
+        data[str(user_id)] = user
+        db_manager.save_data(data)
+        
+        response = (
+            f"🎁 **أبشر بالخير! هذي هديتك:**\n"
+            f"━━━━━━━━━━━━━\n"
+            f"💰 ربحت: {points_win} نقطة\n"
+            f"🏦 رصيدك الآن: {user['points']}\n"
+            f"━━━━━━━━━━━━━"
+        )
+        await update.message.reply_text(response, parse_mode='Markdown')
 
-# تأكد أن الاسم ينتهي بـ _handler (ليتم تحميله تلقائياً)
-gift_main_handler = CommandHandler("gift", gift_command)
+# الهاندلر الذي يراقب كلمة "هدية" حصراً
+gift_arabic_handler = MessageHandler(filters.Text(["هدية"]), gift_text_handler)

@@ -8,24 +8,28 @@ def load_data():
         return {}
     try:
         with open(DB_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
+            content = f.read()
+            return json.loads(content) if content else {}
+    except Exception:
         return {}
 
 def save_data(data):
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_mode=False)
+    try:
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"❌ Error saving data: {e}")
 
 def get_user(user_id):
     data = load_data()
-    user_id = str(user_id)
-    if user_id not in data:
-        data[user_id] = {
+    uid = str(user_id)
+    if uid not in data:
+        data[uid] = {
             "points": 0,
             "level": 1,
             "exp": 0,
             "rank": "متدرب",
-            "last_gift_time": None
+            "last_gift_time": "2000-01-01T00:00:00" # تاريخ قديم جداً للسماح بالهدية فوراً
         }
         save_data(data)
-    return data[user_id]
+    return data[uid]

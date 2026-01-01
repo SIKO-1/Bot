@@ -2,20 +2,26 @@ from telegram import Update
 from telegram.ext import MessageHandler, filters, ContextTypes
 import db_manager
 
-async def balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # التأكد من وجود رسالة نصية
-    if not update.message or not update.message.text:
-        return
+async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.message.text: return
     
-    msg_text = update.message.text.strip()
-    
-    # الرد فقط عند كتابة كلمة "رصيد"
-    if msg_text == "رصيد":
-        user_id = update.message.from_user.id
-        user = db_manager.get_user(user_id)
-        
-        points = user.get("points", 0)
-        await update.message.reply_text(f"💰 رصيدك الحالي: {points} نقطة.")
+    msg = update.message.text.strip()
+    user_id = update.message.from_user.id
+    user = db_manager.get_user(user_id)
 
-# التأكد من أن الاسم ينتهي بـ _handler ليقرأه ملف main.py
-check_balance_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), balance_handler)
+    # إذا كتب "رصيد"
+    if msg == "رصيد":
+        await update.message.reply_text(f"💰 رصيدك الحالي: {user['points']} نقطة.")
+    
+    # إذا كتب "مستوى"
+    elif msg in ["مستوى", "رتبتي"]:
+        response = (
+            f"👤 الأسم: {update.message.from_user.first_name}\n"
+            f"🎖 الرتبة: {user['rank']}\n"
+            f"🆙 المستوى: {user['level']}\n"
+            f"💰 النقاط: {user['points']}"
+        )
+        await update.message.reply_text(response)
+
+# هذا الهاندلر سيعمل في "المجموعة 0" لضمان السرعة
+check_stats_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), stats_handler)

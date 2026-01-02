@@ -1,59 +1,28 @@
-import json
-import os
+from pymongo import MongoClient
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_FILE = os.path.join(BASE_DIR, "database.json")
+# ⚠️ ضع كلمة سرك مكان النص العربي أدناه ولا تمسح النقطتين : أو علامة @
+MONGO_URL = "mongodb+srv://wpee923_db_user:08520852KR@cluster0.nzjd5gc.mongodb.net/?appName=Cluster0"
 
-def load_data():
-    if not os.path.exists(DB_FILE):
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            f.write("{}")
-        return {}
-    try:
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            content = f.read()
-            return json.loads(content) if content else {}
-    except:
-        return {}
-
-def save_data(data):
-    try:
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
-            f.flush()
-            os.fsync(f.fileno())
-    except Exception as e:
-        print(f"Error in Saving: {e}")
+client = MongoClient(MONGO_URL)
+db = client['EmpireDB']
+users_col = db['users']
 
 def get_user(user_id):
-    data = load_data()
     uid = str(user_id)
-    if uid not in data:
-        data[uid] = {
-            "balance": 0, 
-            "inventory": [], 
-            "rank": "مبتدئ", 
-            "bio": "لا يوجد بايو"
-        }
-        save_data(data)
-    return data[uid]
+    user = users_col.find_one({"user_id": uid})
+    if not user:
+        new_user = {"user_id": uid, "balance": 0, "inventory": [], "rank": "مبتدئ", "bio": "لا يوجد"}
+        users_col.insert_one(new_user)
+        return new_user
+    return user
 
-# --- الدالة المطلوبة لملف الهدية (update_user) ---
 def update_user(user_id, key, value):
-    data = load_data()
     uid = str(user_id)
-    if uid not in data:
-        get_user(uid)
-        data = load_data()
-    data[uid][key] = value
-    save_data(data)
+    users_col.update_one({"user_id": uid}, {"$set": {key: value}})
 
-# --- الدوال المطلوبة لملف الرصيد والفلوس ---
 def get_balance(user_id):
-    user = get_user(user_id)
-    return user.get('balance', 0)
+    return get_user(user_id).get('balance', 0)
 
 def update_balance(user_id, amount):
-    user = get_user(user_id)
-    new_bal = user.get('balance', 0) + amount
-    update_user(user_id, 'balance', new_bal)
+    uid = str(user_id)
+    users_col.update_one({"user_id": uid}, {"$inc": {"balance": amount}})

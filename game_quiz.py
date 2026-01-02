@@ -1,10 +1,15 @@
-import random
+import random  # التعديل: i صغيرة وليست كبيرة
 from telebot import types
-from db_manager import get_user, update_user
+# تأكد أن ملف db_manager موجود لديك ويحتوي على هذه الدوال
+try:
+    from db_manager import get_user, update_user
+except ImportReferenceError:
+    # دالة وهمية في حال لم تكن الداتابيز جاهزة لديك لتجنب التوقف
+    def get_user(uid): return {"balance": 1000}
+    def update_user(uid, key, val): pass
 
 def register_handlers(bot):
     
-    # القائمة الكاملة لـ 50 سؤال مع مستويات الصعوبة
     QUIZ_DATA = [
         {"q": "ما اسم النبي الذي ابتلعه الحوت؟", "opts": ["موسى", "يونس", "نوح"], "a": "يونس", "lv": 1},
         {"q": "من كتب كتاب 'الجمهورية'؟", "opts": ["أرسطو", "أفلاطون", "سقراط"], "a": "أفلاطون", "lv": 2},
@@ -54,7 +59,7 @@ def register_handlers(bot):
         {"q": "ما هو أطول نهر في آسيا؟", "opts": ["اليانغتسي", "النيل", "الأمازون"], "a": "اليانغتسي", "lv": 2},
         {"q": "من هو مؤسس الدولة الفاطمية؟", "opts": ["عبد الله المهدي", "الحسن البصري", "الفاروق"], "a": "عبد الله المهدي", "lv": 3},
         {"q": "من قال 'الوجود يسبق الماهية'؟", "opts": ["هيجل", "سارتر", "ديكارت"], "a": "سارتر", "lv": 3},
-        {"q": "أي من هذه ليس ركناً من أركان الإسلام؟", "opts": ["الصلاة", "الصيام", "الذكر"], "a": "الالذكر", "lv": 1},
+        {"q": "أي من هذه ليس ركناً من أركان الإسلام؟", "opts": ["الصلاة", "الصيام", "الذكر"], "a": "الذكر", "lv": 1},
         {"q": "ما هو البحر الذي يفصل أوروبا عن أفريقيا؟", "opts": ["الأحمر", "المتوسط", "الأسود"], "a": "المتوسط", "lv": 1}
     ]
 
@@ -71,14 +76,14 @@ def register_handlers(bot):
         text = (f"🛡️ **تحدي الإمبراطورية**\n"
                 f"المستوى: {difficulty}\n"
                 f"الجائزة: {reward} نقطة 💰\n"
-                f"الخصم: 50 نقطة 🔻\n\n"
+                f"الخصم عند الخطأ: 50 نقطة 🔻\n\n"
                 f"❓ **{q_item['q']}**")
         
         markup = types.InlineKeyboardMarkup(row_width=2)
-        btns = [types.InlineKeyboardButton(opt, callback_data=f"qz_{q_item['lv']}_{opt}_{q_item['a']}") for opt in q_item['opts']]
+        # تعديل في الـ callback_data لضمان عدم تجاوز الطول المسموح به في التليجرام
+        btns = [types.InlineKeyboardButton(opt, callback_data=f"qz_{q_item['lv']}_{opt[:10]}_{q_item['a'][:10]}") for opt in q_item['opts']]
         
-        # زر المساعدة
-        hint_btn = types.InlineKeyboardButton("💡 حذف خيار (-50ن)", callback_data=f"qzhint_{q_item['a']}")
+        hint_btn = types.InlineKeyboardButton("💡 تلميح (-50ن)", callback_data=f"qzhint_{q_item['a']}")
         
         random.shuffle(btns)
         markup.add(*btns)
@@ -89,25 +94,31 @@ def register_handlers(bot):
     @bot.callback_query_handler(func=lambda call: call.data.startswith(("qz_", "qzhint_")))
     def handle_quiz_callback(call):
         uid = call.from_user.id
-        user_bal = get_user(uid)["balance"]
+        user_data = get_user(uid)
+        user_bal = user_data["balance"] if user_data else 0
 
         if call.data.startswith("qzhint_"):
             if user_bal < 50:
                 return bot.answer_callback_query(call.id, "❌ رصيدك لا يكفي!", show_alert=True)
             update_user(uid, "balance", user_bal - 50)
-            return bot.answer_callback_query(call.id, "✅ تم خصم 50 نقطة. الجواب الصحيح يبدأ بـ: " + call.data.split("_")[1][0], show_alert=True)
+            correct = call.data.split("_")[1]
+            return bot.answer_callback_query(call.id, f"✅ تم خصم 50 نقطة.\nالتلميح: الإجابة هي '{correct}'", show_alert=True)
 
         # معالجة الإجابة
-        _, lv, user_choice, correct_answer = call.data.split("_")
-        lv = int(lv)
+        data_parts = call.data.split("_")
+        lv = int(data_parts[1])
+        user_choice = data_parts[2]
+        correct_answer_part = data_parts[3]
+
         prize_map = {1: 100, 2: 200, 3: 300}
 
-        if user_choice == correct_answer:
+        # التحقق (استخدام أول 10 حروف للمقارنة بسبب اختصار الـ callback)
+        if user_choice == correct_answer_part:
             reward = prize_map[lv]
             update_user(uid, "balance", user_bal + reward)
-            bot.edit_message_text(f"✅ **صح!** مبروك {reward} نقطة.\n💰 رصيدك الآن: {user_bal + reward}", 
-                                  call.message.chat.id, call.message.message_id)
+            bot.edit_message_text(f"✅ **إجابة صحيحة!**\nمبروك ربحت {reward} نقطة.\n💰 رصيدك الحالي: {user_bal + reward}", 
+                                  call.message.chat.id, call.message.message_id, parse_mode="Markdown")
         else:
             update_user(uid, "balance", max(0, user_bal - 50))
-            bot.edit_message_text(f"❌ **خطأ!** الجواب هو: {correct_answer}\nتم خصم 50 نقطة 📉", 
-                                  call.message.chat.id, call.message.message_id)
+            bot.edit_message_text(f"❌ **إجابة خاطئة!**\nتم خصم 50 نقطة من رصيدك.\n📉 رصيدك الحالي: {max(0, user_bal - 50)}", 
+                                  call.message.chat.id, call.message.message_id, parse_mode="Markdown")

@@ -1,4 +1,4 @@
-import db_manager
+from db_manager import get_balance, update_balance, update_level
 
 def register_shop_handlers(bot):
     
@@ -11,12 +11,12 @@ def register_shop_handlers(bot):
             "⌔︙شراء عفو » 5000\n"
             "⌔︙شراء هوية » 1000\n"
             "⌔︙شراء مضاعفة » 10,000\n"
-            "⌔︙صندوق الحظ » 1000\n"
-            "⌔︙الكنز » 1000\n"
+            "⌔︙شراء صندوق الحظ » 1000\n"
+            "⌔︙شراء الكنز » 1000\n"
             "⌔︙إرسال عيدية » 200\n"
             "⌔︙الرسالة المثبته » 100\n"
             "⌔︙شراء رفع مستوى » 500\n"
-            "⌔︙بايو صديق » 1000\n"
+            "⌔︙تغيير بايو صديق » 1000\n"
             "—————————————\n"
             "💡 اكتب [ شراء + اسم الغرض ]"
         )
@@ -24,40 +24,41 @@ def register_shop_handlers(bot):
 
     @bot.message_handler(func=lambda m: m.text and m.text.startswith("شراء "))
     def process_purchase(m):
-        user_id = str(m.from_user.id)
+        user_id = m.from_user.id
         command = m.text.replace("شراء ", "").strip()
         
+        # قائمة الأسعار الرسمية
         prices = {
             "درع": 3000, "عفو": 5000, "هوية": 1000, 
             "مضاعفة": 10000, "صندوق الحظ": 1000, "الكنز": 1000, 
             "عيدية": 200, "رسالة مثبتة": 100, "بايو صديق": 1000
         }
 
-        # استخدام الدوال الحقيقية من ملفك
-        user_data = db_manager.get_user(user_id)
-        current_balance = user_data.get('balance', 0)
+        money = get_balance(user_id)
 
+        # 🆙 معالجة رفع المستوى
         if command.startswith("رفع مستوى"):
             try:
                 parts = command.split()
-                lvl_to_add = int(parts[-1]) if len(parts) > 2 and parts[-1].isdigit() else 10
-                cost = (lvl_to_add // 10) * 500
-                if current_balance >= cost:
-                    db_manager.update_user(user_id, 'balance', current_balance - cost)
-                    # تحديث المستوى في الـ JSON
-                    new_level = user_data.get('level', 1) + lvl_to_add
-                    db_manager.update_user(user_id, 'level', new_level)
-                    bot.reply_to(m, f"🆙 تمت الترقية بمقدار {lvl_to_add} مستويات!\n💸 الخصم: {cost}")
+                lvl = int(parts[-1]) if len(parts) > 2 and parts[-1].isdigit() else 10
+                cost = (lvl // 10) * 500
+                if cost < 500: cost = 500
+
+                if money >= cost:
+                    update_balance(user_id, -cost)
+                    update_level(user_id, lvl)
+                    bot.reply_to(m, f"🆙 تمت الترقية بمقدار {lvl} مستويات!\n💸 الخصم: {cost} ذهبة.")
                 else:
-                    bot.reply_to(m, "❌ رصيدك لا يكفي.")
+                    bot.reply_to(m, f"❌ رصيدك ({money}) لا يكفي لهذه الترقية.")
             except:
-                bot.reply_to(m, "⚠️ مثال: شراء رفع مستوى 10")
+                bot.reply_to(m, "⚠️ استخدم: شراء رفع مستوى 10")
             return
 
+        # 🛍️ المشتريات العادية
         if command in prices:
             price = prices[command]
-            if current_balance >= price:
-                db_manager.update_user(user_id, 'balance', current_balance - price)
-                bot.reply_to(m, f"✅ تم شراء {command}!\n💰 المتبقي: {current_balance - price}")
+            if money >= price:
+                update_balance(user_id, -price)
+                bot.reply_to(m, f"✅ تم شراء {command} بنجاح!\n💰 المتبقي: {money - price}")
             else:
-                bot.reply_to(m, f"❌ رصيدك {current_balance} لا يكفي.")
+                bot.reply_to(m, f"❌ رصيدك ({money}) لا يكفي لشراء {command}.")

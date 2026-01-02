@@ -1,49 +1,42 @@
 import telebot
 import os
 import importlib.util
-import sys
 
-# 1. التوكن الخاص بك
-API_TOKEN = 'YOUR_BOT_TOKEN_HERE'
+# هنا الكود سيسحب التوكن من Variables الموقع تلقائياً
+# تأكد أن اسم المتغير في ريلوي هو BOT_TOKEN أو غير الاسم هنا ليطابقه
+API_TOKEN = os.getenv('BOT_TOKEN') 
+
+if not API_TOKEN:
+    print("❌ خطأ: لم أجد التوكن في Variables الموقع! تأكد من تسميته BOT_TOKEN")
+    exit()
+
 bot = telebot.TeleBot(API_TOKEN)
 
 def load_all_games():
-    # المسار الحالي للملفات
     base_path = os.path.dirname(os.path.abspath(__file__))
-    
-    print("--- 🔄 جاري مسح الإمبراطورية وتحميل الألعاب تلقائياً ---")
+    print("--- 🔄 جاري فحص ملفات الألعاب ---")
     
     for filename in os.listdir(base_path):
-        # شروط التحميل: ملف بايثون، ليس ملف main، وليس db_manager
         if filename.endswith(".py") and filename not in ["main.py", "db_manager.py"]:
             module_name = filename[:-3]
-            file_path = os.path.join(base_path, filename)
-            
             try:
-                # عملية الاستيراد الديناميكي
-                spec = importlib.util.spec_from_file_location(module_name, file_path)
+                spec = importlib.util.spec_from_file_location(module_name, os.path.join(base_path, filename))
                 module = importlib.util.module_from_spec(spec)
-                sys.modules[module_name] = module
                 spec.loader.exec_module(module)
                 
-                # التأكد من وجود دالة التشغيل داخل ملف اللعبة
                 if hasattr(module, 'register_handlers'):
                     module.register_handlers(bot)
-                    print(f"✅ تم تفعيل اللعبة تلقائياً: {module_name}")
-                else:
-                    print(f"⚠️ الملف {module_name} موجود لكنه يفتقد لدالة register_handlers")
-                    
+                    print(f"✅ تم تفعيل: {module_name}")
             except Exception as e:
-                print(f"❌ فشل تحميل {module_name} بسبب خطأ برمي: {e}")
+                print(f"⚠️ مشكلة في ملف {module_name}: {e}")
 
-# تشغيل عملية التحميل
+# تشغيل الفحص
 load_all_games()
 
-# هاندلر أساسي للتأكد من عمل البوت
 @bot.message_handler(commands=['start'])
-def start_cmd(m):
-    bot.reply_to(m, "👑 الإمبراطورية عادت للعمل بنظام التحميل التلقائي!")
+def start(m):
+    bot.reply_to(m, "👑 الإمبراطورية عادت للعمل بنظام المتغيرات!")
 
 if __name__ == "__main__":
-    print("🚀 البوت يعمل الآن.. أضف أي ملف لعبة وسيعمل بعد إعادة التشغيل!")
+    print("🚀 البot انطلق الآن...")
     bot.infinity_polling()

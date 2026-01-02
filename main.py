@@ -39,6 +39,7 @@ def start(m):
 
 if __name__ == "__main__":
     print("🚀 البot انطلق الآن...")
-    bot.polling(none_stop=True)
+    bot.infinity_polling(timeout=10, long_polling_timeout=5)
+
 
 

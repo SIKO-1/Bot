@@ -1,10 +1,11 @@
 import random
 import time
+import threading
 from telebot import types
 
 def register_handlers(bot):
     
-    # قائمة العقوبات الـ 50
+    # قائمة العقوبات الـ 50 الملكية (تم تنقيحها لتناسب الهيبة)
     PENALTIES_LIST = [
         "قل أنا غبي بصوت 🎙️", "اعطي شخص معين تحية غريبة 👋", "ارسل إيموجي غريب في المحادثة 👺",
         "اعمل وجه مضحك عشر ثواني بصوت 🤪", "حاول الرقص عشرين ثانية 💃", "غنّي جملة واحدة بصوت 🎤",
@@ -25,56 +26,68 @@ def register_handlers(bot):
         "اذكر ثلاث كلمات عشوائية مضحكة 🌀", "اغني آخر كلمة قالها اللاعب قبلك بصوت 🎶", "اختر لاعب ليقول كلمة مضحكة بصوته الغريب 🎙️"
     ]
 
-    # قاموس لتخزين المشاركين مؤقتاً في كل شات
     active_games = {}
 
     @bot.message_handler(func=lambda m: m.text == "عقوبات")
     def start_penalty_reg(m):
         chat_id = m.chat.id
         if m.chat.type == "private":
-            return bot.reply_to(m, "❌ اللعبة للمجموعات فقط.")
+            return bot.reply_to(m, "❌ هذه اللعبة للمجموعات الإمبراطورية فقط.")
 
-        # فتح باب التسجيل
-        active_games[chat_id] = {"players": [], "start_time": time.time()}
-        
-        msg = bot.send_message(chat_id, "📢 **فتح باب التسجيل للعبة العقوبات!**\n\nعلى الراغبين باللعب الرد على هذه الرسالة بكلمة (أنا) أو أسمائهم.\n\n⏱️ أمامكم 20 ثانية للتسجيل..")
-        
-        # ننتظر 20 ثانية ثم نختار العقوبة
-        time.sleep(20)
-        process_penalty(chat_id, bot)
+        # منع تداخل الألعاب في نفس المجموعة
+        if chat_id in active_games:
+            return bot.reply_to(m, "⚠️ المحكمة منعقدة بالفعل، انتظر انتهاء العقوبة الحالية!")
 
-    @bot.message_handler(func=lambda m: m.chat.id in active_games and m.reply_to_message)
+        active_games[chat_id] = {"players": [], "is_open": True}
+        
+        # تصميم ملكي لبدء التسجيل
+        text = (
+            "┏━━━━━━━ ● ━━━━━━━┓\n"
+            "      ⌯ مـحـكـمـة الـعـقـوبـات ⌯\n"
+            "┗━━━━━━━ ● ━━━━━━━┛\n\n"
+            "📢 بـاب الـتـسـجـيـل مـفـتـوح الآن!\n"
+            "⚖️ للـمـشاركة: أرسل كلمة ( أنا ) بالرد على هذه الرسالة.\n\n"
+            "⏱️ أمـامـكـم 20 ثـانـيـة لـحـصـر الضحايا..."
+        )
+        msg = bot.send_message(chat_id, text)
+        active_games[chat_id]["msg_id"] = msg.message_id
+        
+        # استخدام Thread لعدم تعطيل البوت أثناء الانتظار
+        threading.Timer(20, process_penalty, args=[chat_id, bot]).start()
+
+    @bot.message_handler(func=lambda m: m.chat.id in active_games and active_games[m.chat.id]["is_open"])
     def register_player(m):
         chat_id = m.chat.id
-        # إذا كانت الرسالة رداً على رسالة البوت الخاصة بالتسجيل
-        if "فتح باب التسجيل" in m.reply_to_message.text:
-            player = {"id": m.from_user.id, "name": m.from_user.first_name}
-            if player not in active_games[chat_id]["players"]:
-                active_games[chat_id]["players"].append(player)
-                # إشعار بسيط (اختياري)
-                # bot.reply_to(m, f"✅ تم تسجيلك يا {player['name']}")
+        if m.reply_to_message and m.reply_to_message.message_id == active_games[chat_id]["msg_id"]:
+            if m.text == "أنا" or m.text == "انا":
+                player = {"id": m.from_user.id, "name": m.from_user.first_name}
+                if player not in active_games[chat_id]["players"]:
+                    active_games[chat_id]["players"].append(player)
 
     def process_penalty(chat_id, bot):
         if chat_id not in active_games: return
         
         players = active_games[chat_id]["players"]
+        active_games[chat_id]["is_open"] = False # إغلاق التسجيل
         
         if len(players) < 1:
-            bot.send_message(chat_id, "☹️ انتهى الوقت ولم يسجل أحد.. تم إلغاء اللعبة.")
+            bot.send_message(chat_id, "⚖️ صـدر حـكـم الـبـراءة للجميع.. لم يسجل أحد في المحكمة!")
         else:
-            # اختيار ضحية عشوائية
+            # اختيار الضحية والعقوبة
             victim = random.choice(players)
             penalty = random.choice(PENALTIES_LIST)
             
-            text = (f"⚖️ **انتهى وقت التسجيل!**\n\n"
-                    f"الضحية المختارة من بين المشاركين هي:\n"
-                    f"👤 [{victim['name']}](tg://user?id={victim['id']})\n\n"
-                    f"🔥 **عقوبتك يا بطل:**\n"
-                    f"« {penalty} »\n\n"
-                    f"نفذ فوراً ولا تتهرب! 😎")
-            
-            bot.send_message(chat_id, text, parse_mode="Markdown")
+            # تصميم ملكي لصدور الحكم
+            result_text = (
+                "┏━━━━━━━ ● ━━━━━━━┓\n"
+                "         ⌯ صـدور الـحـكـم ⌯\n"
+                "┗━━━━━━━ ● ━━━━━━━┛\n\n"
+                f"👤 الـضـحـيـة : [{victim['name']}](tg://user?id={victim['id']})\n"
+                "⚖️ الـقـرار : جـاري الـتـنـفـيذ فوراً\n\n"
+                f"🔥 **عـقـوبـتـك هـي :**\n"
+                f"« {penalty} »\n\n"
+                "😎 نـفـذ بـصـمـت ولا تـحـاول الـهـرب!"
+            )
+            bot.send_message(chat_id, result_text, parse_mode="Markdown")
         
-        # مسح اللعبة من الذاكرة بعد الانتهاء
         del active_games[chat_id]
-

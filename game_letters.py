@@ -1,5 +1,7 @@
 import random
 from telebot import types
+
+# نظام النقاط المرتبط بالـ Volume
 try:
     from db_manager import get_user, update_user
 except:
@@ -8,7 +10,7 @@ except:
 
 def register_handlers(bot):
     
-    # قائمة الـ 150 كلمة (منوعة وعشوائية)
+    # مخزن الكلمات الملكي (150 كلمة)
     WORDS_DB = [
         "سلمون", "كمبيوتر", "مدرسة", "تليجرام", "أسد", "فلسطين", "العراق", "مصر", "برتقال", "سيارة",
         "طائرة", "كتاب", "تلفاز", "رمضان", "قهوة", "موز", "تفاح", "عنب", "مانجو", "خوخ",
@@ -28,40 +30,44 @@ def register_handlers(bot):
         "قمر", "شمس", "نجوم", "كوكب", "سماء", "سحاب", "مطر", "ثلج", "رعد", "برق"
     ]
 
-    active_puzzles = {}
+    active_games = {}
 
     @bot.message_handler(func=lambda m: m.text == "فكك")
-    def start_letters(m):
+    def start_game(m):
         chat_id = m.chat.id
         word = random.choice(WORDS_DB)
         
-        # تفكيك الكلمة وبعثرة الحروف
-        letters = list(word)
-        random.shuffle(letters)
-        shuffled = " - ".join(letters)
+        # تحويل الكلمة إلى حروف مرتبة وبينها مسافات "ا - س - د"
+        shuffled = " - ".join(list(word))
         
-        active_puzzles[chat_id] = {"word": word, "prize": 20}
+        active_games[chat_id] = word
         
-        text = (f"🔹 لـعـبـة : فـكـك 🔹\n\n"
-                f"الكلمة : [ {shuffled} ]\n\n"
-                f"💰 الجائزة : 20 نقطة\n"
-                f"أرسل الحل الصحيح الآن!")
-        
+        text = (
+            "┏━━━━━━━ ● ━━━━━━━┓\n"
+            "         ⌯ تـحـدي الـتـرتـيـب ⌯\n"
+            "┗━━━━━━━ ● ━━━━━━━┛\n\n"
+            f"  » جـمّـع الـكلمة الـتـالـيـة :\n"
+            f"📦 [ {shuffled} ]\n\n"
+            "⚠️ أرسل الكلمة الصحيحة الآن\n"
+            "💰 الـجـائـزة : 20 نـقـطـة"
+        )
         bot.send_message(chat_id, text)
 
-    @bot.message_handler(func=lambda m: m.chat.id in active_puzzles)
-    def check_letters(m):
+    @bot.message_handler(func=lambda m: m.chat.id in active_games)
+    def check_answer(m):
         chat_id = m.chat.id
-        game_data = active_puzzles[chat_id]
-        
-        # التأكد من مطابقة الحل للكلمة المختارة
-        if m.text == game_data['word']:
+        # التأكد من مطابقة الحل (حذف المسافات من إجابة اللاعب إن وجدت)
+        if m.text.strip() == active_games[chat_id]:
             uid = m.from_user.id
-            prize = game_data['prize']
+            user_bal = get_user(uid).get("balance", 0)
+            update_user(uid, "balance", user_bal + 20)
             
-            update_user(uid, "balance", get_user(uid)["balance"] + prize)
-            
-            bot.reply_to(m, f"✅ كفو يا بطل! إجابة صحيحة.\nمبروك حصلت على {prize} نقطة.")
-            
-            # مسح اللعبة الحالية من الذاكرة للسماح بجولة جديدة
-            del active_puzzles[chat_id]
+            win_text = (
+                "⌯ تـم الـتـحـقـق مـن الإجـابـة ⌯\n"
+                "━━━━━━━━━━━━━━\n"
+                f"👤 الـفـائـز : {m.from_user.first_name}\n"
+                "✅ الإجـابـة : صـحـيـحـة (كـفـو)\n"
+                "💰 الـجـوائـز : +20 نـقـطـة"
+            )
+            bot.reply_to(m, win_text)
+            del active_games[chat_id]

@@ -1,7 +1,6 @@
 import json
 import os
 
-# تحديد المسار المطلق للملف لضمان عدم ضياعه في المجلدات المؤقتة
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "database.json")
 
@@ -19,43 +18,42 @@ def load_data():
 
 def save_data(data):
     try:
-        # الحفظ بطريقة الكتابة المباشرة والآمنة
         with open(DB_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
             f.flush()
             os.fsync(f.fileno())
     except Exception as e:
-        print(f"Error saving: {e}")
+        print(f"Error in Saving: {e}")
 
 def get_user(user_id):
     data = load_data()
     uid = str(user_id)
     if uid not in data:
-        data[uid] = {"balance": 0, "inventory": [], "rank": "مبتدئ", "bio": "لا يوجد"}
+        data[uid] = {
+            "balance": 0, 
+            "inventory": [], 
+            "rank": "مبتدئ", 
+            "bio": "لا يوجد بايو"
+        }
         save_data(data)
     return data[uid]
 
-def update_balance(user_id, amount):
-    data = load_data()
-    uid = str(user_id)
-    user = get_user(uid)
-    data[uid]["balance"] = user.get("balance", 0) + amount
-    save_data(data)
-
-def set_rank(user_id, rank_name):
-    data = load_data()
-    uid = str(user_id)
-    if uid in data:
-        data[uid]["rank"] = rank_name
-        save_data(data)
-
-# دالة التحديث الشاملة لإصلاح أخطاء الاستيراد في ملف العيدية وغيره
+# --- الدالة المطلوبة لملف الهدية (update_user) ---
 def update_user(user_id, key, value):
     data = load_data()
     uid = str(user_id)
     if uid not in data:
         get_user(uid)
         data = load_data()
-    
     data[uid][key] = value
     save_data(data)
+
+# --- الدوال المطلوبة لملف الرصيد والفلوس ---
+def get_balance(user_id):
+    user = get_user(user_id)
+    return user.get('balance', 0)
+
+def update_balance(user_id, amount):
+    user = get_user(user_id)
+    new_bal = user.get('balance', 0) + amount
+    update_user(user_id, 'balance', new_bal)

@@ -1,4 +1,5 @@
-# كود متجر الإمبراطورية المستقل تماماً
+import db_manager
+
 def register_shop_handlers(bot):
     
     @bot.message_handler(func=lambda m: m.text in ["متجر", "المتجر", "شوب", "shop"])
@@ -24,19 +25,43 @@ def register_shop_handlers(bot):
 
     @bot.message_handler(func=lambda m: m.text and m.text.startswith("شراء "))
     def process_purchase(m):
+        user_id = str(m.from_user.id)
         command = m.text.replace("شراء ", "").strip()
         
-        # الأسعار التي حددتها أنت [cite: 2026-01-02]
         prices = {
             "درع": 3000, "عفو": 5000, "هوية": 1000, 
             "مضاعفة": 10000, "صندوق الحظ": 1000, "الكنز": 1000, 
             "عيدية": 200, "رسالة مثبتة": 100, "بايو صديق": 1000
         }
 
+        # جلب بيانات المستخدم من ملفك (نظام JSON)
+        user_data = db_manager.get_user(user_id)
+        current_balance = user_data.get('balance', 0)
+        current_level = user_data.get('level', 1)
+
+        # 🆙 حالة رفع المستوى (كل 10 بـ 500)
+        if command.startswith("رفع مستوى"):
+            try:
+                parts = command.split()
+                lvl_to_add = int(parts[-1]) if len(parts) > 2 and parts[-1].isdigit() else 10
+                cost = (lvl_to_add // 10) * 500
+                if cost < 500: cost = 500
+
+                if current_balance >= cost:
+                    db_manager.update_user(user_id, 'balance', current_balance - cost)
+                    db_manager.update_user(user_id, 'level', current_level + lvl_to_add)
+                    bot.reply_to(m, f"🆙 هنيئاً! تم رفع مستواك بمقدار {lvl_to_add}.\n💸 تم خصم {cost} من رصيدك.")
+                else:
+                    bot.reply_to(m, f"❌ رصيدك ({current_balance}) لا يكفي!")
+            except:
+                bot.reply_to(m, "⚠️ استخدم: شراء رفع مستوى 10")
+            return
+
+        # 🛍️ المشتريات العادية
         if command in prices:
             price = prices[command]
-            # رسالة مؤقتة لتأكيد أن الكود اشتغل بدون أخطاء
-            bot.reply_to(m, f"✅ تم استلام طلب شراء {command}.\n💸 السعر المطلوب: {price} ذهبة.\n⚠️ سيتم الخصم بمجرد ربط محفظتك بنجاح.")
-        
-        elif command.startswith("رفع مستوى"):
-            bot.reply_to(m, "🆙 تم استلام طلب رفع المستوى، تكلفة الـ 10 مستويات هي 500 ذهبة.")
+            if current_balance >= price:
+                db_manager.update_user(user_id, 'balance', current_balance - price)
+                bot.reply_to(m, f"✅ تم شراء {command} بنجاح!\n💰 المتبقي: {current_balance - price}")
+            else:
+                bot.reply_to(m, f"❌ رصيدك ({current_balance}) لا يكفي لشراء {command}.")

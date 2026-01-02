@@ -1,7 +1,7 @@
 import random
 from telebot import types
 
-# نظام النقاط
+# نظام النقاط المرتبط بالـ Volume
 try:
     from db_manager import get_user, update_user
 except:
@@ -9,7 +9,7 @@ except:
     def update_user(uid, k, v): pass
 
 def register_handlers(bot):
-    # بنك الكلمات - 50 كلمة فخمة
+    # بنك الكلمات الملكي - تم ترتيبه بدقة
     OPPOSITES = {
         "قوي": "ضعيف", "سريع": "بطيء", "كبير": "صغير", "حار": "بارد",
         "نهار": "ليل", "جميل": "قبيح", "ذكي": "غبي", "سعيد": "حزين",
@@ -28,13 +28,13 @@ def register_handlers(bot):
 
     active_games = {}
 
-    # الاستجابة لأمر "عكس" فقط
     @bot.message_handler(func=lambda m: m.text == "عكس")
     def start_game(m):
+        chat_id = m.chat.id
         word = random.choice(list(OPPOSITES.keys()))
-        active_games[m.chat.id] = OPPOSITES[word]
+        active_games[chat_id] = OPPOSITES[word]
         
-        # زخرفة فخمة وتغيير الاسم إلى "عكس"
+        # الزخرفة الإمبراطورية الفخمة
         text = (
             "┏━━━━━━━ ● ━━━━━━━┓\n"
             "         ⌯ تـحـدي الـعـكـس ⌯\n"
@@ -43,22 +43,25 @@ def register_handlers(bot):
             "⚠️ أرسل العكس الصحيح الآن\n"
             "💰 الـجـائـزة : 25 نـقـطـة"
         )
-        bot.send_message(m.chat.id, text)
+        bot.send_message(chat_id, text)
 
     @bot.message_handler(func=lambda m: m.chat.id in active_games)
     def check_answer(m):
         chat_id = m.chat.id
-        if m.text == active_games[chat_id]:
+        # التحقق من الإجابة مع تنظيف النص من المسافات
+        if m.text.strip() == active_games[chat_id]:
             uid = m.from_user.id
             bal = get_user(uid).get("balance", 0)
             update_user(uid, "balance", bal + 25)
             
+            # رسالة الفوز الملكية
             win_text = (
                 "⌯ تـم الـتـحـقـق مـن الإجـابـة ⌯\n"
                 "━━━━━━━━━━━━━━\n"
                 f"👤 الـفـائـز : {m.from_user.first_name}\n"
-                "✅ الإجـابـة : صـحـيـحـة\n"
-                "💰 الـجـوائـز : +25 نـقـاط"
+                "✅ الإجـابـة : صـحـيـحـة (كفو)\n"
+                "💰 الـجـوائـز : +25 نـقـطـة"
             )
             bot.reply_to(m, win_text)
+            # إنهاء اللعبة لهذا الشات
             del active_games[chat_id]

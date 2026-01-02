@@ -4,8 +4,7 @@ from telebot import types
 
 def register_handlers(bot):
     
-    # قائمة الـ 50 سؤالاً الإمبراطورية
-    CONFESS_QUESTIONS = [
+    Q_LIST = [
         "هل تثق بنفسك فعلًا؟", "هل تخاف من فقدان شخص مقرّب؟", "هل ندمت يومًا على قرار مهم؟",
         "هل تحب العزلة أحيانًا؟", "هل تقول “أنا بخير” وأنت لست كذلك؟", "هل سامحت شخصًا لا يستحق؟",
         "هل تشتاق لشخص لا تتحدث معه؟", "هل تحس أنك مختلف عن محيطك؟", "هل كتمت مشاعرك حتى تعبت؟",
@@ -27,21 +26,21 @@ def register_handlers(bot):
 
     @bot.message_handler(func=lambda m: m.text == "اعتراف")
     def start_confess(m):
-        question = random.choice(CONFESS_QUESTIONS)
-        text = (
+        q = random.choice(Q_LIST)
+        msg = (
             "┏━━━━━━━ ● ━━━━━━━┓\n"
             "         ⌯ كـرسـي الاعـتـراف ⌯\n"
             "┗━━━━━━━ ● ━━━━━━━┛\n\n"
             f"👤 إلـى : {m.from_user.first_name}\n\n"
             f"💬 الـسـؤال :\n"
-            f"« **{question}** »\n\n"
+            f"« **{q}** »\n\n"
             "⚖️ أجـب بـكـل صـراحة.."
         )
-        bot.send_message(m.chat.id, text, parse_mode="Markdown")
+        bot.send_message(m.chat.id, msg, parse_mode="Markdown")
 
     @bot.message_handler(func=lambda m: m.text in ["متجر", "المتجر"])
-    def empire_shop(m):
-        shop_text = (
+    def show_shop(m):
+        txt = (
             "⌔︙قائمة متجر الإمبراطورية\n"
             "—————————————\n"
             "⌔︙شراء درع » 3000\n"
@@ -57,32 +56,32 @@ def register_handlers(bot):
             "—————————————\n"
             "💡 اكتب [ شراء + اسم الغرض ]"
         )
-        bot.reply_to(m, shop_text)
+        bot.reply_to(m, txt)
 
     @bot.message_handler(func=lambda m: m.text and m.text.startswith("شراء "))
-    def handle_purchase(m):
-        user_id = str(m.from_user.id)
-        item = m.text.replace("شراء ", "").strip()
+    def buy(m):
+        uid = str(m.from_user.id)
+        cmd = m.text.replace("شراء ", "").strip()
         
-        # الأرقام هنا مكتوبة كأعداد صحيحة نظيفة تماماً [cite: 2026-01-02]
-        prices = {
-            "درع": 3000, 
-            "عفو": 5000, 
-            "هوية": 1000, 
-            "مضاعفة": 10000, 
-            "صندوق الحظ": 1000, 
-            "الكنز": 1000, 
-            "عيدية": 200, 
-            "رسالة مثبتة": 100, 
+        # الأرقام مكتوبة بدون أي أصفار بادئة أو فواصل نهائياً
+        p = {
+            "درع": 3000,
+            "عفو": 5000,
+            "هوية": 1000,
+            "مضاعفة": 10000,
+            "صندوق الحظ": 1000,
+            "الكنز": 1000,
+            "عيدية": 200,
+            "رسالة مثبتة": 100,
+            "رفع مستوى": 500,
             "بايو صديق": 1000
         }
 
-        if item in prices:
-            price = prices[item]
-            money = db_manager.get_balance(user_id)
-            
-            if money >= price:
-                db_manager.update_balance(user_id, -price)
-                bot.reply_to(m, f"✅ تم شراء {item} بنجاح!\n💰 المتبقي: {money - price}")
+        if cmd in p:
+            cost = p[cmd]
+            bal = db_manager.get_balance(uid)
+            if bal >= cost:
+                db_manager.update_balance(uid, -cost)
+                bot.reply_to(m, f"✅ تم شراء {cmd}!\n💰 المتبقي: {bal - cost}")
             else:
-                bot.reply_to(m, f"❌ رصيدك ({money}) لا يكفي لشراء {item}.")
+                bot.reply_to(m, f"❌ رصيدك {bal} لا يكفي.")

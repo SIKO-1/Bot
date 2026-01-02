@@ -67,3 +67,27 @@ def remove_from_inventory(user_id, item_name):
         update_user(user_id, 'inventory', inventory)
         return True
     return False
+
+def update_xp(user_id, amount):
+    user = get_user(user_id)
+    xp = user.get('xp', 0) + amount
+    
+    # حساب النقاط المطلوبة للفل القادم (صعوبة تصاعدية)
+    current_lvl = user.get('level', 1)
+    needed_xp = current_lvl * 100 # كل لفل يصعب عن اللي قبله
+    
+    if xp >= needed_xp:
+        new_lvl = current_lvl + 1
+        update_user(user_id, 'level', new_lvl)
+        update_user(user_id, 'xp', 0) # تصغير الـ XP للبدء من جديد
+        return True, new_lvl
+    
+    update_user(user_id, 'xp', xp)
+    return False, current_lvl
+
+def set_rank(user_id, rank_name):
+    update_user(user_id, 'rank', rank_name)
+
+def get_rank(user_id):
+    user = get_user(user_id)
+    return user.get('rank', "عضو جديد")

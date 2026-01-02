@@ -1,10 +1,16 @@
 import random
 from telebot import types
-from db_manager import get_user, update_user
+
+# نظام النقاط المرتبط بالـ Volume
+try:
+    from db_manager import get_user, update_user
+except:
+    def get_user(uid): return {"balance": 0}
+    def update_user(uid, k, v): pass
 
 def register_handlers(bot):
     
-    # قائمة الـ 50 سؤالاً كاملة ومنظمة
+    # قائمة الـ 50 سؤالاً المنظمة (بدون إيموجيات داخلية)
     TF_QUESTIONS = {
         1: {"q": "الحوت يتنفس من الرئتين وليس الخياشيم.", "a": "صح"},
         2: {"q": "الشمس تدور حول الأرض مرة كل سنة.", "a": "خطأ"},
@@ -58,29 +64,27 @@ def register_handlers(bot):
         50: {"q": "الإنسان يستطيع رؤية كل ألوان الطيف الضوئي.", "a": "خطأ"}
     }
 
-    ROASTS = [
-        "ما توقعتك بهذا الغباء الصراحة.. 🤡",
-        "يا ساتر! المعلومات عندك صفر 📉",
-        "حتى جدي يعرف الإجابة، ركز يا بطل! 😂",
-        "شكلك كنت نايم في حصة العلوم.. 😴",
-        "غلط! روح اقرأ كتب بدل ما تضيع وقتك هنا 📚",
-        "تحتاج إعادة ضبط مصنع لعقلك 🧠⚠️",
-        "الإجابة واضحة بس الذكاء عندك في إجازة.. 🏝️"
-    ]
-
     @bot.message_handler(func=lambda m: m.text == "صح")
     def start_tf_game(m):
         q_id = random.choice(list(TF_QUESTIONS.keys()))
         item = TF_QUESTIONS[q_id]
         
-        question_text = f"🧐 **تحدي الصح والخطأ**\n\n- {item['q']}"
+        # الزخرفة الإمبراطورية الفخمة
+        text = (
+            "┏━━━━━━━ ● ━━━━━━━┓\n"
+            "      ⌯ تـحـدي صـح و خـطـأ ⌯\n"
+            "┗━━━━━━━ ● ━━━━━━━┛\n\n"
+            f"  » الـمـعـلـومـة : [ {item['q']} ]\n\n"
+            "⚠️ اضغط على الإجابة الصحيحة أدناه\n"
+            "💰 الـجـائـزة : 50 نـقـطـة"
+        )
         
         markup = types.InlineKeyboardMarkup(row_width=2)
-        btn_true = types.InlineKeyboardButton("✅ صح", callback_data=f"tf_{q_id}_صح")
-        btn_false = types.InlineKeyboardButton("❌ خطأ", callback_data=f"tf_{q_id}_خطأ")
+        btn_true = types.InlineKeyboardButton("✅ صـح", callback_data=f"tf_{q_id}_صح")
+        btn_false = types.InlineKeyboardButton("❌ خـطـأ", callback_data=f"tf_{q_id}_خطأ")
         
         markup.add(btn_true, btn_false)
-        bot.reply_to(m, question_text, reply_markup=markup, parse_mode="Markdown")
+        bot.reply_to(m, text, reply_markup=markup)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("tf_"))
     def handle_tf_answer(call):
@@ -88,20 +92,27 @@ def register_handlers(bot):
         q_id = int(q_id_str)
         item = TF_QUESTIONS[q_id]
         correct_answer = item["a"]
-        question_text = item["q"]
         uid = call.from_user.id
         
         if user_choice == correct_answer:
             points = 50
-            new_bal = get_user(uid)["balance"] + points
-            update_user(uid, "balance", new_bal)
-            bot.edit_message_text(f"✅ **صح يا ذكي!**\n\nربحت {points} نقطة.\n💰 رصيدك: {new_bal}", 
-                                  chat_id=call.message.chat.id, message_id=call.message.message_id)
-        else:
-            if "انت اعمى" in question_text:
-                insult = "مو خبرتك؟ يا أعمى! حتى هذي غلطت فيها؟ 🦯🤣"
-            else:
-                insult = random.choice(ROASTS)
+            bal = get_user(uid).get("balance", 0)
+            update_user(uid, "balance", bal + points)
             
-            bot.edit_message_text(f"❌ **خطأ!**\n\nالإجابة الصح هي: **{correct_answer}**\n\n💬 {insult}", 
-                                  chat_id=call.message.chat.id, message_id=call.message.message_id)
+            win_text = (
+                "⌯ تـم الـتـحـقـق مـن الإجـابـة ⌯\n"
+                "━━━━━━━━━━━━━━\n"
+                f"👤 الـفـائـز : {call.from_user.first_name}\n"
+                "✅ الإجـابـة : صـحـيـحـة (كفو يا ذكي)\n"
+                f"💰 الـجـوائـز : +{points} نـقـاط"
+            )
+            bot.edit_message_text(win_text, chat_id=call.message.chat.id, message_id=call.message.message_id)
+        else:
+            fail_text = (
+                "⌯ تـم الـتـحـقـق مـن الإجـابـة ⌯\n"
+                "━━━━━━━━━━━━━━\n"
+                f"👤 الـخـاسـر : {call.from_user.first_name}\n"
+                f"❌ الإجـابـة : خـاطـئـة (ركز يا بطل)\n"
+                f"💡 الـصـحـيـح : {correct_answer}"
+            )
+            bot.edit_message_text(fail_text, chat_id=call.message.chat.id, message_id=call.message.message_id)

@@ -1,23 +1,22 @@
 import telebot
 import os
 import importlib.util
+from dotenv import load_dotenv
 
-# هنا الكود سيسحب التوكن من Variables الموقع تلقائياً
-# تأكد أن اسم المتغير في ريلوي هو BOT_TOKEN أو غير الاسم هنا ليطابقه
-API_TOKEN = os.getenv('BOT_TOKEN') 
+# تحميل المتغيرات البيئية
+load_dotenv()
+API_TOKEN = os.getenv('BOT_TOKEN')
 
-if not API_TOKEN:
-    print("❌ خطأ: لم أجد التوكن في Variables الموقع! تأكد من تسميته BOT_TOKEN")
-    exit()
-
-bot = telebot.TeleBot(API_TOKEN)
+# 1. إعداد البوت بنظام "تعدد المسارات" لضمان السرعة في المجموعات
+# threaded=True يفتح مسار منفصل لكل مستخدم عشان ما يعلق البوت
+bot = telebot.TeleBot(API_TOKEN, threaded=True, num_threads=20)
 
 def load_all_games():
     base_path = os.path.dirname(os.path.abspath(__file__))
-    print("--- 🔄 جاري فحص ملفات الألعاب ---")
+    print("--- 🔄 جاري فحص وتشغيل ملفات الألعاب ---")
     
     for filename in os.listdir(base_path):
-        if filename.endswith(".py") and filename not in ["main.py", "db_manager.py"]:
+        if filename.endswith(".py") and filename.startswith("game_") or filename.startswith("cmd_"):
             module_name = filename[:-3]
             try:
                 spec = importlib.util.spec_from_file_location(module_name, os.path.join(base_path, filename))
@@ -30,16 +29,20 @@ def load_all_games():
             except Exception as e:
                 print(f"⚠️ مشكلة في ملف {module_name}: {e}")
 
-# تشغيل الفحص
+# تشغيل فحص الملفات
 load_all_games()
 
 @bot.message_handler(commands=['start'])
 def start(m):
-    bot.reply_to(m, "👑 الإمبراطورية عادت للعمل بنظام المتغيرات!")
+    bot.reply_to(m, "👑 أهلاً بك في بوت الإمبراطورية المطور!\nالبوت يعمل الآن بنظام السرعة القصوى 🚀")
 
+# 2. إعداد التشغيل النهائي (السطر 42 المطور)
+# هذا الإعداد يمنع الانفجار ويضمن استمرار العمل بدون توقف
 if __name__ == "__main__":
-    print("🚀 البot انطلق الآن...")
-    bot.infinity_polling(timeout=10, long_polling_timeout=5)
-
-
-
+    print("🚀 الإمبراطورية انطلقت الآن بأقصى طاقتها...")
+    bot.infinity_polling(
+        timeout=90, 
+        long_polling_timeout=10, 
+        logger_level=5,
+        skip_pending=True
+    )

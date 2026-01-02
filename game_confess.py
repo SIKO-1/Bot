@@ -4,7 +4,7 @@ from telebot import types
 
 def register_handlers(bot):
 
-    # 1. نظام كرسي الاعتراف
+    # 💠 1. لعبة كرسي الاعتراف (50 سؤال)
     CONFESS_QUESTIONS = [
         "هل تثق بنفسك فعلًا؟", "هل تخاف من فقدان شخص مقرّب؟", "هل ندمت يومًا على قرار مهم؟",
         "هل تحب العزلة أحيانًا؟", "هل تقول “أنا بخير” وأنت لست كذلك؟", "هل سامحت شخصًا لا يستحق؟",
@@ -39,10 +39,10 @@ def register_handlers(bot):
         )
         bot.send_message(m.chat.id, text, parse_mode="Markdown")
 
-    # 2. متجر الإمبراطورية [cite: 2026-01-02]
+    # 🛒 2. متجر الإمبراطورية الملكي [cite: 2026-01-02]
     @bot.message_handler(func=lambda m: m.text in ["متجر", "المتجر"])
-    def empire_shop(m):
-        txt = (
+    def show_shop(m):
+        shop_text = (
             "🏰 **مـتـجـر الإمـبـراطـوريـة الـعـظـيـم** 🏰\n"
             "————————————————\n"
             "🛡️ درع الحصانة » 3000\n"
@@ -59,11 +59,25 @@ def register_handlers(bot):
             "💡 للشراء: (شراء + اسم الغرض)\n"
             "💡 للمعرض: اكتب (معرض)"
         )
-        bot.reply_to(m, txt, parse_mode="Markdown")
+        bot.reply_to(m, shop_text, parse_mode="Markdown")
 
-    # 3. نظام الشراء والحفظ
+    # 📦 3. المعرض الإمبراطوري
+    @bot.message_handler(func=lambda m: m.text in ["معرض", "المعرض"])
+    def show_inventory(m):
+        uid = str(m.from_user.id)
+        items = db_manager.get_inventory(uid)
+        if not items:
+            bot.reply_to(m, "📦 معرضك فارغ حالياً يا إمبراطور.")
+            return
+        inv_text = "⚜️ **مـعـرض مـمـتـلـكـاتـك الـمـلـكـيـة** ⚜️\n"
+        for i in set(items):
+            inv_text += f"🔹 {i} (عدد: {items.count(i)})\n"
+        inv_text += "————————————————\n💡 للاستخدام: (استخدام + الاسم)"
+        bot.reply_to(m, inv_text, parse_mode="Markdown")
+
+    # 💳 4. نظام الشراء الموحد
     @bot.message_handler(func=lambda m: m.text and m.text.startswith("شراء "))
-    def handle_purchase(m):
+    def buy_item(m):
         uid = str(m.from_user.id)
         item = m.text.replace("شراء ", "").strip()
         prices = {
@@ -71,11 +85,10 @@ def register_handlers(bot):
             "صندوق الحظ": 1000, "الكنز": 1000, "عيدية": 200, 
             "رسالة مثبتة": 100, "بايو صديق": 1000, "رفع مستوى": 500
         }
-
         if item in prices:
             price = prices[item]
-            money = db_manager.get_balance(uid)
-            if money >= price:
+            bal = db_manager.get_balance(uid)
+            if bal >= price:
                 db_manager.update_balance(uid, -price)
                 if item == "رفع مستوى":
                     db_manager.update_level(uid, 10)
@@ -84,45 +97,4 @@ def register_handlers(bot):
                     db_manager.add_to_inventory(uid, item)
                     bot.reply_to(m, f"✅ تم شراء {item} وإضافته لمعرضك!")
             else:
-                bot.reply_to(m, "❌ رصيدك لا يكفي!")
-
-    # 4. المعرض الملكي
-    @bot.message_handler(func=lambda m: m.text in ["معرض", "المتجر"])
-    def show_inventory(m):
-        uid = str(m.from_user.id)
-        items = db_manager.get_inventory(uid)
-        if not items:
-            bot.reply_to(m, "📦 معرضك فارغ حالياً.")
-            return
-        inv_text = "⚜️ **مـعـرض مـمـتـلـكـاتـك الـمـلـكـيـة** ⚜️\n"
-        for i in set(items):
-            inv_text += f"🔹 {i} (عدد: {items.count(i)})\n"
-        inv_text += "————————————————\n💡 للاستخدام: (استخدام + الاسم)"
-        bot.reply_to(m, inv_text, parse_mode="Markdown")
-
-    # 5. الاستخدام وتغيير البايو
-    @bot.message_handler(func=lambda m: m.text and m.text.startswith("استخدام "))
-    def use_item(m):
-        uid = str(m.from_user.id)
-        item = m.text.replace("استخدام ", "").strip()
-        if db_manager.remove_from_inventory(uid, item):
-            if item == "درع":
-                bot.reply_to(m, "🛡️ تم تفعيل درع الحصانة!")
-            elif item == "صندوق الحظ":
-                win = random.randint(500, 3000)
-                db_manager.update_balance(uid, win)
-                bot.reply_to(m, f"🎁 ربحت {win} ذهبة!")
-            elif item == "بايو صديق":
-                bot.reply_to(m, "🎭 رد على رسالة صديقك واكتب (تغيير بايو + النص)")
-                db_manager.add_to_inventory(uid, item)
-        else:
-            bot.reply_to(m, "❌ لا تملك هذا الغرض.")
-
-    @bot.message_handler(func=lambda m: m.text and m.text.startswith("تغيير بايو "))
-    def change_bio(m):
-        if m.reply_to_message:
-            target_id = str(m.reply_to_message.from_user.id)
-            if db_manager.remove_from_inventory(str(m.from_user.id), "بايو صديق"):
-                new_bio = m.text.replace("تغيير بايو ", "").strip()
-                db_manager.update_user(target_id, "bio", new_bio)
-                bot.reply_to(m, "🎭 تم تغيير البايو بنجاح!")
+                bot.reply_to(m, f"❌ رصيدك ({bal}) لا يكفي!")

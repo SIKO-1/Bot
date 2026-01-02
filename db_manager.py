@@ -48,3 +48,14 @@ def set_rank(user_id, rank_name):
     if uid in data:
         data[uid]["rank"] = rank_name
         save_data(data)
+
+# دالة التحديث الشاملة لإصلاح أخطاء الاستيراد في ملف العيدية وغيره
+def update_user(user_id, key, value):
+    data = load_data()
+    uid = str(user_id)
+    if uid not in data:
+        get_user(uid)
+        data = load_data()
+    
+    data[uid][key] = value
+    save_data(data)

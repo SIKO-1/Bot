@@ -1,43 +1,71 @@
 import random
-from db_manager import get_user, update_user
+from telebot import types
+
+# نظام النقاط المرتبط بالـ Volume
+try:
+    from db_manager import get_user, update_user
+except:
+    def get_user(uid): return {"balance": 1000}
+    def update_user(uid, k, v): pass
 
 def register_handlers(bot):
     
     @bot.message_handler(func=lambda m: m.text == "تخمين")
     def start_guess(m):
         uid = m.from_user.id
-        user_data = get_user(uid)
-        balance = user_data.get("balance", 0)
+        user_bal = get_user(uid).get("balance", 0)
 
-        # التأكد من أن لديه رصيد كافٍ للخسارة (50 نقطة على الأقل)
-        if balance < 50:
-            return bot.reply_to(m, f"❌ رصيدك {balance} نقطة فقط. لازم يكون عندك 50 نقطة على الأقل عشان تخمن!")
+        # التأكد من هيبة الرصيد
+        if user_bal < 50:
+            return bot.reply_to(m, f"❌ رصيدك {user_bal} نقطة فقط. القوانين الصارمة تمنع دخولك التحدي بأقل من 50 نقطة!")
 
-        # توليد الرقم السري من 1 إلى 20
-        secret_number = random.randint(1, 20)
+        # توليد الرقم السري (نطاق أوسع لزيادة التحدي)
+        secret_number = random.randint(1, 15)
         
-        msg = bot.reply_to(m, "🎯 **لعبة التخمين الملكية**\n\nلقد اخترت رقماً سرياً من **1 إلى 20**.. خمن ما هو؟\n\n⚠️ _ملاحظة: لو فزت تاخذ 200، ولو خسرت ينخصم منك 50!_")
+        text = (
+            "┏━━━━━━━ ● ━━━━━━━┓\n"
+            "         ⌯ تـحـدي الـتـخـمـيـن ⌯\n"
+            "┗━━━━━━━ ● ━━━━━━━┛\n\n"
+            "🎯 لقد اخترت رقماً سرياً من [ 1 إلى 15 ]\n"
+            "🧠 استخدم حدسك الإمبراطوري وخمن الرقم؟\n\n"
+            "💰 الـفـوز : +200 نـقـطـة\n"
+            "💸 الـخـسارة : -50 نـقـطـة"
+        )
         
-        # ننتقل للخطوة التالية لفحص رقم المستخدم
+        msg = bot.send_message(m.chat.id, text)
+        # الانتظار للرد التالي من نفس المستخدم
         bot.register_next_step_handler(msg, lambda message: check_guess(message, secret_number, bot))
 
     def check_guess(m, secret_num, bot):
         uid = m.from_user.id
-        user_data = get_user(uid)
-        balance = user_data.get("balance", 0)
+        user_bal = get_user(uid).get("balance", 0)
 
+        # التأكد أن المدخل رقم
         try:
             user_guess = int(m.text)
-        except (ValueError, TypeError):
-            return bot.reply_to(m, "⚠️ لازم ترسل رقم فقط! ضاعت عليك المحاولة وخصمت منك 50 لعدم التركيز 🌚")
+        except:
+            update_user(uid, "balance", max(0, user_bal - 50))
+            return bot.reply_to(m, "⚠️ أرسلت نصاً وليس رقماً! تم خصم 50 نقطة كغرامة لعدم التركيز 🌚")
 
         if user_guess == secret_num:
-            # حالة الفوز
-            new_bal = balance + 200
-            update_user(uid, "balance", new_bal)
-            bot.reply_to(m, f"🎉 **أسطورة!** تخمينك صح الرقم كان {secret_num}.\n💰 ربحت 200 نقطة!\n✨ رصيدك الجديد: {new_bal}")
+            # حالة الانتصار العظيم
+            update_user(uid, "balance", user_bal + 200)
+            win_text = (
+                "⌯ انـتـصـار إمـبـراطـوري ⌯\n"
+                "━━━━━━━━━━━━━━\n"
+                f"👤 الـبـطل : {m.from_user.first_name}\n"
+                f"✅ الـتـخـمـين : {user_guess} (صح)\n"
+                "💰 الـجـوائـز : +200 نـقـطـة"
+            )
+            bot.reply_to(m, win_text)
         else:
-            # حالة الخسارة
-            new_bal = max(0, balance - 50)
-            update_user(uid, "balance", new_bal)
-            bot.reply_to(m, f"💀 **خطأ!** أنا اخترت الرقم {secret_num} وأنت كتبت {user_guess}.\n💸 خسرت 50 نقطة..\n✨ رصيدك المتبقي: {new_bal}")
+            # حالة الخيبة
+            update_user(uid, "balance", max(0, user_bal - 50))
+            fail_text = (
+                "⌯ خـيـبـة أمـل ⌯\n"
+                "━━━━━━━━━━━━━━\n"
+                f"❌ تخمينك كان : {user_guess}\n"
+                f"💡 الرقم الصحيح : {secret_num}\n"
+                "💸 الخسارة : -50 نقطة"
+            )
+            bot.reply_to(m, fail_text)

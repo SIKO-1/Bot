@@ -1,42 +1,74 @@
 import random
-from db_manager import get_user, update_user
+import time
+from telebot import types
+
+# نظام النقاط المرتبط بالـ Volume
+try:
+    from db_manager import get_user, update_user
+except:
+    def get_user(uid): return {"balance": 1000}
+    def update_user(uid, k, v): pass
 
 def register_handlers(bot):
     
     @bot.message_handler(func=lambda m: m.text == "نرد")
     def dice_game(m):
         uid = m.from_user.id
-        user_data = get_user(uid)
-        balance = user_data.get("balance", 0)
+        user_bal = get_user(uid).get("balance", 0)
 
+        # رسالة تمهيدية لرفع الحماس
+        start_msg = bot.reply_to(m, "🎲 جاري رمي نرد الحظ الإمبراطوري... استعد!")
+        
         # إرسال النرد المتحرك
         dice_msg = bot.send_dice(m.chat.id)
-        value = dice_msg.dice.value # قيمة النرد من 1 إلى 6
+        value = dice_msg.dice.value # القيمة من 1 إلى 6
 
-        # تحديد النتيجة بناءً على الرقم
+        # ننتظر 3 ثوانٍ حتى يتوقف النرد عن الدوران (لمسة واقعية ملكية)
+        time.sleep(3.5)
+
         if value >= 5:
-            # فوز كبير (رقم 5 أو 6)
+            # الفوز العظيم (5 أو 6)
             prize = 200
-            new_bal = balance + prize
-            update_user(uid, "balance", new_bal)
-            bot.reply_to(m, f"🔥 **يا حظك!** طلعت لك {value}\n💰 ربحت الجائزة الكبرى: {prize} نقطة!\n✨ رصيدك الآن: {new_bal}")
+            update_user(uid, "balance", user_bal + prize)
+            res_text = (
+                "┏━━━━━━━ ● ━━━━━━━┓\n"
+                "         ⌯ فـوز إمـبـراطـوري ⌯\n"
+                "┗━━━━━━━ ● ━━━━━━━┛\n\n"
+                f"🔥 الـحـظ يـبـتـسـم لـك : [ {value} ]\n"
+                "💰 الـجـائزة الـكـبـرى : +200 نـقـطـة\n"
+                f"✨ رصـيـدك الـحـالي : {user_bal + prize}"
+            )
+            bot.reply_to(dice_msg, res_text)
             
         elif value >= 3:
-            # فوز متوسط (رقم 3 أو 4)
+            # الربح المتوسط (3 أو 4)
             prize = 50
-            new_bal = balance + prize
-            update_user(uid, "balance", new_bal)
-            bot.reply_to(m, f"🎲 حظ جيد، طلعت لك {value}\n💰 ربحت: {prize} نقطة.\n✨ رصيدك الآن: {new_bal}")
+            update_user(uid, "balance", user_bal + prize)
+            res_text = (
+                "┏━━━━━━━ ● ━━━━━━━┓\n"
+                "         ⌯ حـظ مـتـوسـط ⌯\n"
+                "┗━━━━━━━ ● ━━━━━━━┛\n\n"
+                f"🎲 الـنـتـيـجـة مـقـبـولـة : [ {value} ]\n"
+                "💰 الـجـوائـز : +50 نـقـطـة\n"
+                f"✨ رصـيـدك الـحـالي : {user_bal + prize}"
+            )
+            bot.reply_to(dice_msg, res_text)
             
         else:
-            # خسارة (رقم 1 أو 2)
+            # غضب الحظ (1 أو 2)
             penalty = 30
-            # التأكد إن الرصيد ما يصير بالسالب
-            if balance < penalty:
-                new_bal = 0
-            else:
-                new_bal = balance - penalty
-                
+            new_bal = max(0, user_bal - penalty)
             update_user(uid, "balance", new_bal)
-            bot.reply_to(m, f"💀 **حظك سيء!** طلعت لك {value}\n💸 خسرنا منك {penalty} نقطة كضريبة للحظ..\n✨ رصيدك المتبقي: {new_bal}")
-
+            res_text = (
+                "┏━━━━━━━ ● ━━━━━━━┓\n"
+                "         ⌯ غـضـب الـنـرد ⌯\n"
+                "┗━━━━━━━ ● ━━━━━━━┛\n\n"
+                f"🌚 لـلأسـف حـظـك عـاثـر : [ {value} ]\n"
+                "💸 ضـريـبـة الـحـظ : -30 نـقـطـة\n"
+                f"✨ رصـيـدك الـمـتـبـقي : {new_bal}"
+            )
+            bot.reply_to(dice_msg, res_text)
+        
+        # حذف رسالة التمهيد لتنظيف الشات
+        try: bot.delete_message(m.chat.id, start_msg.message_id)
+        except: pass

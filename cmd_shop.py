@@ -2,18 +2,19 @@ import db_manager
 
 def register_shop_handlers(bot):
     
-    # دالة ذكية لتحديد اسم دالة الرصيد والخصم تلقائياً من ملفك
-    def get_user_points(user_id):
-        # نحاول بكل الأسماء المحتملة التي قد تكون وضعتها في db_manager
-        for func_name in ['get_balance', 'get_money', 'get_points', 'get_user_balance']:
+    # دالة ذكية لإيجاد دالة الرصيد والخصم مهما كان اسمها في ملفك
+    def call_db_func(user_id, amount=None, mode="get"):
+        # قائمة الأسماء المحتملة التي قد تكون استخدمتها في db_manager
+        get_names = ['get_balance', 'get_money', 'get_points', 'get_user_balance', 'get_user_points']
+        update_names = ['update_balance', 'update_money', 'update_points', 'update_user_balance', 'update_user_points']
+        
+        target_list = get_names if mode == "get" else update_names
+        
+        for func_name in target_list:
             if hasattr(db_manager, func_name):
-                return getattr(db_manager, func_name)(user_id)
+                func = getattr(db_manager, func_name)
+                return func(user_id) if mode == "get" else func(user_id, amount)
         return 0
-
-    def update_user_points(user_id, amount):
-        for func_name in ['update_balance', 'update_money', 'update_points', 'update_user_balance']:
-            if hasattr(db_manager, func_name):
-                return getattr(db_manager, func_name)(user_id, amount)
 
     @bot.message_handler(func=lambda m: m.text in ["متجر", "المتجر", "شوب", "shop"])
     def send_shop_list(m):
@@ -30,7 +31,7 @@ def register_shop_handlers(bot):
             "⌔︙الرسالة المثبته » 100\n"
             "⌔︙رفع المستوى » 500\n"
             "⌔︙بايو صديق » 1000\n"
-            "⌔︙الرتب » لعرض الرتب المتاحة\n"
+            "⌔︙الرتب » لعرض الرتب\n"
             "—————————————\n"
             "💡 اكتب [ شراء + اسم الغرض ]"
         )
@@ -41,16 +42,15 @@ def register_shop_handlers(bot):
         user_id = m.from_user.id
         command = m.text.replace("شراء ", "").strip()
         
-        # الأسعار المحفوظة [cite: 2026-01-02]
+        # الأسعار التي حددتها أنت [cite: 2026-01-02]
         prices = {
             "درع": 3000, "عفو": 5000, "هوية": 1000, 
             "مضاعفة": 10000, "صندوق الحظ": 1000, "الكنز": 1000, 
             "عيدية": 200, "رسالة مثبتة": 100, "بايو صديق": 1000
         }
 
-        current_money = get_user_points(user_id)
+        current_money = call_db_func(user_id, mode="get")
 
-        # 🆙 رفع المستوى (كل 10 بـ 500) [cite: 2026-01-02]
         if command.startswith("رفع مستوى"):
             try:
                 parts = command.split()
@@ -59,11 +59,10 @@ def register_shop_handlers(bot):
                 if cost < 500: cost = 500
 
                 if current_money >= cost:
-                    update_user_points(user_id, -cost)
-                    # محاولة رفع اللفل
+                    call_db_func(user_id, -cost, mode="update")
                     if hasattr(db_manager, 'update_level'):
                         db_manager.update_level(user_id, lvl_to_add)
-                    bot.reply_to(m, f"🆙 تم رفع مستواك بمقدار {lvl_to_add}.\n💸 تم خصم {cost} ذهبة.")
+                    bot.reply_to(m, f"🆙 تم رفع مستواك بمقدار {lvl_to_add}.\n💸 الخصم: {cost} ذهبة.")
                 else:
                     bot.reply_to(m, f"❌ رصيدك ({current_money}) لا يكفي!")
             except:
@@ -73,7 +72,7 @@ def register_shop_handlers(bot):
         if command in prices:
             price = prices[command]
             if current_money >= price:
-                update_user_points(user_id, -price)
-                bot.reply_to(m, f"✅ تم شراء {command} بنجاح!\n💰 رصيدك المتبقي: {current_money - price}")
+                call_db_func(user_id, -price, mode="update")
+                bot.reply_to(m, f"✅ تم شراء {command} بنجاح!\n💰 المتبقي: {current_money - price}")
             else:
-                bot.reply_to(m, f"❌ رصيدك {current_money} لا يكفي لشراء {command}.")
+                bot.reply_to(m, f"❌ رصيدك {current_money} لا يكفي.")

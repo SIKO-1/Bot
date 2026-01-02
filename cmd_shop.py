@@ -1,4 +1,4 @@
-from db_manager import get_balance, update_balance, update_level
+import db_manager
 
 def register_shop_handlers(bot):
     
@@ -28,15 +28,21 @@ def register_shop_handlers(bot):
         user_id = m.from_user.id
         command = m.text.replace("شراء ", "").strip()
         
-        # الأسعار المثبتة [cite: 2026-01-02]
         prices = {
             "درع": 3000, "عفو": 5000, "هوية": 1000, 
             "مضاعفة": 10000, "صندوق الحظ": 1000, "الكنز": 1000, 
             "عيدية": 200, "رسالة مثبتة": 100, "بايو صديق": 1000
         }
 
-        # استخدام الأسماء الصحيحة للدوال كما في ملفاتك
-        current_money = get_balance(user_id)
+        # محاولة جلب الرصيد بأسماء دوال بديلة لتجنب الخطأ
+        try:
+            current_money = db_manager.get_money(user_id)
+        except AttributeError:
+            try:
+                current_money = db_manager.get_coins(user_id)
+            except AttributeError:
+                bot.reply_to(m, "⚠️ خطأ فني: لم أستطع العثور على محفظتك في قاعدة البيانات.")
+                return
 
         if command.startswith("رفع مستوى"):
             try:
@@ -46,11 +52,11 @@ def register_shop_handlers(bot):
                 if cost < 500: cost = 500
 
                 if current_money >= cost:
-                    update_balance(user_id, -cost)
-                    update_level(user_id, lvl_to_add)
-                    bot.reply_to(m, f"🆙 هنيئاً! تم رفع مستواك بمقدار {lvl_to_add}.\n💸 تم خصم {cost} ذهبة.")
+                    db_manager.update_money(user_id, -cost)
+                    db_manager.update_level(user_id, lvl_to_add)
+                    bot.reply_to(m, f"🆙 تم رفع مستواك بمقدار {lvl_to_add}.\n💸 الخصم: {cost} ذهبة.")
                 else:
-                    bot.reply_to(m, f"❌ رصيدك ({current_money}) لا يكفي!")
+                    bot.reply_to(m, "❌ ذهبك لا يكفي!")
             except:
                 bot.reply_to(m, "⚠️ استخدم الصيغة: شراء رفع مستوى 10")
             return
@@ -58,9 +64,7 @@ def register_shop_handlers(bot):
         if command in prices:
             price = prices[command]
             if current_money >= price:
-                update_balance(user_id, -price)
-                bot.reply_to(m, f"✅ تم شراء {command} بنجاح!\n💰 رصيدك المتبقي: {current_money - price}")
+                db_manager.update_money(user_id, -price)
+                bot.reply_to(m, f"✅ تم شراء {command}!\n💰 رصيدك المتبقي: {current_money - price}")
             else:
-                bot.reply_to(m, f"❌ رصيدك لا يكفي لشراء {command}. السعر: {price}")
-        else:
-            bot.reply_to(m, "❌ هذا الغرض غير متوفر في المتجر.")
+                bot.reply_to(m, f"❌ رصيدك {current_money} لا يكفي.")

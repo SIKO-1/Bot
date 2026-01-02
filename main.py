@@ -1,28 +1,52 @@
 import telebot
 import os
 import importlib
-import pkgutil
-from db_manager import get_user, update_user
+import sys
 
-TOKEN = os.getenv("BOT_TOKEN")
-bot = telebot.TeleBot(TOKEN)
+# 1. ضع التوكن الخاص بك هنا
+API_TOKEN = 'YOUR_BOT_TOKEN_HERE'
+bot = telebot.TeleBot(API_TOKEN)
 
-# --- كود الربط التلقائي المطور (يدعم cmd و game) ---
-def load_all_modules():
-    for loader, module_name, is_pkg in pkgutil.iter_modules(['.']):
-        # هنا التعديل: خليناه يفحص النوعين
-        if module_name.startswith('cmd_') or module_name.startswith('game_'):
-            module = importlib.import_module(module_name)
+def load_plugins():
+    # تأكد أن ملفات الألعاب موجودة في مجلد اسمه plugins
+    # أو غير المسار لـ "." إذا كانت الملفات بجانب الـ main.py مباشرة
+    plugins_dir = "." 
+    
+    print("--- 🔄 جاري تحميل إمبراطورية الألعاب ---")
+    
+    # الحصول على قائمة الملفات وترتيبها (الألعاب أولاً لضمان الأولوية)
+    files = [f for f in os.listdir(plugins_dir) if f.endswith(".py") and f != "main.py" and f != "db_manager.py"]
+    
+    for filename in files:
+        module_name = filename[:-3]
+        try:
+            # استيراد الملف ديناميكياً
+            spec = importlib.util.spec_from_file_location(module_name, os.path.join(plugins_dir, filename))
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+            
+            # تشغيل دالة التسجيل داخل كل ملف
             if hasattr(module, 'register_handlers'):
                 module.register_handlers(bot)
-                print(f"✅ تم ربط: {module_name}")
+                print(f"✅ تم تفعيل: {module_name}")
+            else:
+                print(f"⚠️ الملف {module_name} لا يحتوي على دالة register_handlers")
+                
+        except Exception as e:
+            print(f"❌ خطأ في تحميل {module_name}: {e}")
 
-# تشغيل الربط
-load_all_modules()
+    print("--- ✨ جميع الأوامر جاهزة للعمل ---")
 
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    bot.reply_to(message, "🚀 الإمبراطورية تعمل بنظام الملفات المنفصلة!")
+# تشغيل التحميل عند بدء البوت
+if __name__ == "__main__":
+    load_plugins()
+    
+    # هاندلر بسيط للتأكد أن البوت شغال
+    @bot.message_handler(commands=['start', 'help'])
+    def send_welcome(m):
+        bot.reply_to(m, "👑 أهلاً بك في بوت الإمبراطورية، جميع الألعاب مفعلة الآن!")
 
-print("🚀 البوت انطلق...")
-bot.polling(none_stop=True)
+    # بدء استقبال الرسائل
+    print("🚀 البوت يعمل الآن على ريلوي...")
+    bot.infinity_polling()

@@ -27,7 +27,6 @@ def update_user(user_id, key, value):
     data[str(user_id)][key] = value
     save_data(data)
 
-# أضف هذه الأسطر في نهاية ملف db_manager.py
 def get_balance(user_id):
     user = get_user(user_id)
     return user.get('balance', 0)

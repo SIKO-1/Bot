@@ -1,44 +1,41 @@
 from datetime import datetime, timedelta
-from db_manager import get_user, update_user
+import db_manager # استدعاء الملف بالكامل لضمان عمل الدوال
 
 def register_handlers(bot):
-    """دالة التسجيل التلقائي"""
     
-    # --- أمر الهدية المعدل ---
+    # --- أمر الهدية اليومية ---
     @bot.message_handler(func=lambda message: message.text == "هدية")
     def gift_command(message):
         uid = message.from_user.id
-        user = get_user(uid)
+        user = db_manager.get_user(uid) or {} # حماية ضد الانهيار
         now = datetime.now()
         
+        # استخدام الحقل الصحيح للوقت
         last_gift_str = user.get("last_gift")
         if last_gift_str:
-            last_time = datetime.fromisoformat(last_gift_str)
-            if now < last_time + timedelta(days=1):
-                # حساب الوقت المتبقي
-                diff = (last_time + timedelta(days=1)) - now
-                hours = int(diff.total_seconds() // 3600)
-                minutes = int((diff.total_seconds() % 3600) // 60)
-                
-                msg = f"🌚 باقيلك {hours} ساعة و {minutes} دقيقة وتحصل هديتك ثانية.. لا تصير طماع! امشي العب وحصل نقاط ادبسز 🏃‍♂️"
-                return bot.reply_to(message, msg)
+            try:
+                last_time = datetime.fromisoformat(last_gift_str)
+                if now < last_time + timedelta(days=1):
+                    diff = (last_time + timedelta(days=1)) - now
+                    hours, minutes = int(diff.total_seconds() // 3600), int((diff.total_seconds() % 3600) // 60)
+                    return bot.reply_to(message, f"🌚 باقيلك {hours} ساعة و {minutes} دقيقة.. لا تصير طماع! امشي العب وحصل ذهب 🏃‍♂️")
+            except: pass # في حال وجود خطأ في صيغة التاريخ
 
-        # إضافة النقاط
-        new_balance = user.get("balance", 0) + 500
-        update_user(uid, "balance", new_balance)
-        update_user(uid, "last_gift", now.isoformat())
+        # إضافة الذهب (باستخدام المسميات الصحيحة)
+        gold_reward = 500 [cite: 2026-01-02]
+        db_manager.update_user_gold(uid, gold_reward)
+        db_manager.update_user(uid, {"last_gift": now.isoformat()})
         
-        bot.reply_to(message, f"🎁 هاك هذي 500 نقطة هدية.. \n💰 صار عندك {new_balance} نقطة، لا تصرفها كلها مرة وحدة!")
+        new_gold = db_manager.get_user_gold(uid)
+        bot.reply_to(message, f"🎁 هاك هذي 500 ذهبة هدية.. \n💰 صار عندك {new_gold} ذهبة، لا تصرفها كلها!")
 
-    # --- أمر الرصيد المعدل (فلوسي / رصيدي / رصيد) ---
+    # --- أمر الرصيد ---
     @bot.message_handler(func=lambda message: message.text in ["فلوسي", "رصيدي", "رصيد"])
     def balance_command(message):
-        user = get_user(message.from_user.id)
-        balance = user.get("balance", 0)
+        gold = db_manager.get_user_gold(message.from_user.id)
         
-        if balance > 1000:
-            msg = f"💰 رصيدك: {balance} نقطة\n🔥 أوهووو! عندك كثير فلوس يا غني، من أين لك هذا؟ 🤑"
+        if gold > 1000:
+            msg = f"💰 رصيدك: {gold} ذهبة\n🔥 أوهووو! عندك كثير ذهب يا غني! 🤑"
         else:
-            msg = f"💰 رصيدك: {balance} نقطة\n💸 هذي كل فلوسك؟ يا فقير شد حيلك وجمع نقاط! 🤡"
-            
+            msg = f"💰 رصيدك: {gold} ذهبة\n💸 هذي كل فلوسك؟ يا فقير شد حيلك! 🤡"
         bot.reply_to(message, msg)

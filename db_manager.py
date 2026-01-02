@@ -26,3 +26,18 @@ def get_balance(user_id):
 def update_balance(user_id, amount):
     uid = str(user_id)
     users_col.update_one({"user_id": uid}, {"$inc": {"balance": amount}})
+
+def get_user_inventory(user_id):
+    """جلب قائمة الممتلكات الخاصة بالمستخدم من السحابة"""
+    user_data = collection.find_one({"user_id": user_id})
+    if user_data and "inventory" in user_data:
+        return user_data["inventory"]
+    return []
+
+def add_item_to_inventory(user_id, item_name):
+    """إضافة أداة جديدة إلى معرض المستخدم"""
+    collection.update_one(
+        {"user_id": user_id},
+        {"$push": {"inventory": item_name}},
+        upsert=True
+    )

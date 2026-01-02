@@ -41,3 +41,23 @@ def update_level(user_id, amount):
     user = get_user(user_id)
     new_level = user.get('level', 1) + amount
     update_user(user_id, 'level', new_level)
+   
+    def add_to_inventory(user_id, item_name):
+    user = get_user(user_id)
+    inventory = user.get('inventory', [])
+    inventory.append(item_name)
+    update_user(user_id, 'inventory', inventory)
+
+def get_inventory(user_id):
+    user = get_user(user_id)
+    return user.get('inventory', [])
+
+def remove_from_inventory(user_id, item_name):
+    user = get_user(user_id)
+    inventory = user.get('inventory', [])
+    if item_name in inventory:
+        inventory.remove(item_name)
+        update_user(user_id, 'inventory', inventory)
+        return True
+    return False
+

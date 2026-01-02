@@ -33,5 +33,11 @@ def load_all_games():
 load_all_games()
 
 if __name__ == "__main__":
-    print("🚀 البوت انطلق الآن...")
-    bot.infinity_polling(timeout=90, skip_pending=True)
+    print("╔═════════════════╗")
+    print("   الديوان الإمبراطوري يعمل الآن")
+    print("╚═════════════════╝")
+    try:
+        # التشغيل بنمط السيادة: يتجاهل الأخطاء ولا يتوقف أبداً
+        bot.polling(none_stop=True, interval=0, timeout=20, skip_pending=True)
+    except Exception as e:
+        print(f"⚠️ تنبيه سيادي: حدث خطأ في النظام: {e}")

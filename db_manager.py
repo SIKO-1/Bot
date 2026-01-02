@@ -1,43 +1,42 @@
+import os
 from pymongo import MongoClient
+from dotenv import load_dotenv
 
-# ⚠️ ضع كلمة سرك مكان النص العربي أدناه ولا تمسح النقطتين : أو علامة @
-MONGO_URL = "mongodb+srv://wpee923_db_user:08520852KR@cluster0.nzjd5gc.mongodb.net/?appName=Cluster0"
+# تحميل الإعدادات
+load_dotenv()
 
+# الاتصال بقاعدة البيانات (تأكد من وجود MONGO_URL في إعدادات الاستضافة)
+MONGO_URL = os.getenv('MONGO_URL')
 client = MongoClient(MONGO_URL)
-db = client['EmpireDB']
-users_col = db['users']
+db = client['EmpireBotDB']  # اسم قاعدة البيانات
+collection = db['users']    # اسم جدول المستخدمين
 
-def get_user(user_id):
-    uid = str(user_id)
-    user = users_col.find_one({"user_id": uid})
-    if not user:
-        new_user = {"user_id": uid, "balance": 0, "inventory": [], "rank": "مبتدئ", "bio": "لا يوجد"}
-        users_col.insert_one(new_user)
-        return new_user
-    return user
+def get_user_gold(user_id):
+    """جلب رصيد الذهب"""
+    user = collection.find_one({"user_id": user_id})
+    if user:
+        return user.get("gold", 0)
+    return 0
 
-def update_user(user_id, key, value):
-    uid = str(user_id)
-    users_col.update_one({"user_id": uid}, {"$set": {key: value}})
-
-def get_balance(user_id):
-    return get_user(user_id).get('balance', 0)
-
-def update_balance(user_id, amount):
-    uid = str(user_id)
-    users_col.update_one({"user_id": uid}, {"$inc": {"balance": amount}})
-
-def get_user_inventory(user_id):
-    """جلب قائمة الممتلكات الخاصة بالمستخدم من السحابة"""
-    user_data = collection.find_one({"user_id": user_id})
-    if user_data and "inventory" in user_data:
-        return user_data["inventory"]
-    return []
+def update_user_gold(user_id, amount):
+    """تحديث الذهب (إضافة أو خصم)"""
+    collection.update_one(
+        {"user_id": user_id},
+        {"$inc": {"gold": amount}},
+        upsert=True
+    )
 
 def add_item_to_inventory(user_id, item_name):
-    """إضافة أداة جديدة إلى معرض المستخدم"""
+    """إضافة أداة للمعرض بعد الشراء"""
     collection.update_one(
         {"user_id": user_id},
         {"$push": {"inventory": item_name}},
         upsert=True
     )
+
+def get_user_inventory(user_id):
+    """جلب ممتلكات المعرض"""
+    user = collection.find_one({"user_id": user_id})
+    if user and "inventory" in user:
+        return user["inventory"]
+    return []

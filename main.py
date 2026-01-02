@@ -39,5 +39,6 @@ def start(m):
 
 if __name__ == "__main__":
     print("🚀 البot انطلق الآن...")
-  bot.infinity_polling(skip_pending=True)  
+    bot.polling(none_stop=True)
+
 

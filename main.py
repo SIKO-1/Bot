@@ -1,48 +1,40 @@
 import telebot
 import os
 import importlib.util
-from dotenv import load_dotenv
 
-# تحميل المتغيرات البيئية
-load_dotenv()
-API_TOKEN = os.getenv('BOT_TOKEN')
+# --- إعداد التوكن المباشر لضمان عدم الانفجار ---
+# ضع التوكن الخاص بك هنا مباشرة بين القوسين إذا استمر الخطأ
+API_TOKEN = os.getenv('BOT_TOKEN') or "حط_التوكن_هنا_إذا_مانفع_السحب_التلقائي"
 
-# 1. إعداد البوت بنظام "تعدد المسارات" لضمان السرعة في المجموعات
-# threaded=True يفتح مسار منفصل لكل مستخدم عشان ما يعلق البوت
+# إعداد البوت مع دعم تعدد المسارات (السرعة القصوى)
 bot = telebot.TeleBot(API_TOKEN, threaded=True, num_threads=20)
 
 def load_all_games():
     base_path = os.path.dirname(os.path.abspath(__file__))
-    print("--- 🔄 جاري فحص وتشغيل ملفات الألعاب ---")
+    print("--- 🔄 جاري تشغيل الأنظمة ---")
     
     for filename in os.listdir(base_path):
-        if filename.endswith(".py") and filename.startswith("game_") or filename.startswith("cmd_"):
+        if (filename.startswith("game_") or filename.startswith("cmd_")) and filename.endswith(".py"):
             module_name = filename[:-3]
             try:
                 spec = importlib.util.spec_from_file_location(module_name, os.path.join(base_path, filename))
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
-                
                 if hasattr(module, 'register_handlers'):
                     module.register_handlers(bot)
-                    print(f"✅ تم تفعيل: {module_name}")
+                    print(f"✅ فعال: {module_name}")
             except Exception as e:
-                print(f"⚠️ مشكلة في ملف {module_name}: {e}")
+                print(f"⚠️ خطأ في {module_name}: {e}")
 
-# تشغيل فحص الملفات
 load_all_games()
 
 @bot.message_handler(commands=['start'])
 def start(m):
-    bot.reply_to(m, "👑 أهلاً بك في بوت الإمبراطورية المطور!\nالبوت يعمل الآن بنظام السرعة القصوى 🚀")
+    bot.reply_to(m, "🚀 البوت يعمل الآن بأقصى سرعة!")
 
-# 2. إعداد التشغيل النهائي (السطر 42 المطور)
-# هذا الإعداد يمنع الانفجار ويضمن استمرار العمل بدون توقف
 if __name__ == "__main__":
-    print("🚀 الإمبراطورية انطلقت الآن بأقصى طاقتها...")
-    bot.infinity_polling(
-        timeout=90, 
-        long_polling_timeout=10, 
-        logger_level=5,
-        skip_pending=True
-    )
+    print("🚀 انطلق الإمبراطور...")
+    try:
+        bot.infinity_polling(timeout=90, skip_pending=True)
+    except Exception as e:
+        print(f"❌ خطأ في التشغيل: {e}")

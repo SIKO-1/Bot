@@ -1,17 +1,11 @@
 import random
 import time
 from telebot import types
-
-# نظام النقاط المرتبط بالـ Volume
-try:
-    from db_manager import get_user, update_user
-except:
-    def get_user(uid): return {"balance": 0}
-    def update_user(uid, k, v): pass
+import db_manager # الربط بالخزنة الملكية
 
 def register_handlers(bot):
     
-    # القائمة الملكية (كلمات تحتاج أصابع من فولاذ)
+    # القائمة الملكية - كما هي بدون تغيير
     KEYBOARD_WORDS = [
         "قسطنطينية", "فسيكفيكهم الله", "استسقيناكموها", "فأسقيناكموه", "ليستخلفنهم",
         "مستضعفون", "سيجعل لهم الرحمن وُدًّا", "أفغيرَ الله تأمروني", "فأنجيناه وأهله", "المتشابهات",
@@ -44,7 +38,7 @@ def register_handlers(bot):
             "┗━━━━━━━ ● ━━━━━━━┛\n\n"
             "⚡️ أسرع واحد يكتب الكلمة التالية:\n"
             f"✨ [ `{word}` ] ✨\n\n"
-            "💰 الـجـائـزة : 100 نـقـطـة\n"
+            "💰 الـجـائـزة : 100 ذهبة\n"
         )
         
         bot.send_message(chat_id, text, parse_mode="Markdown")
@@ -54,23 +48,22 @@ def register_handlers(bot):
         chat_id = m.chat.id
         challenge = active_challenges[chat_id]
         
-        # التأكد من صحة الكلمة (حذف المسافات الزائدة)
+        # التأكد من صحة الكلمة
         if m.text.strip() == challenge["word"]:
             # الفائز الأول
             if not challenge["winner"]:
                 challenge["winner"] = m.from_user.id
                 elapsed_time = round(time.time() - challenge["start_time"], 2)
                 
-                # تحديث النقاط
-                user_bal = get_user(m.from_user.id).get("balance", 0)
-                update_user(m.from_user.id, "balance", user_bal + 100)
+                # تحديث الذهب في الخزنة الحقيقية
+                db_manager.update_user_gold(m.from_user.id, 100)
                 
                 win_text = (
                     "⌯ وحـش الـكـيـبـورد وصـل ⌯\n"
                     "━━━━━━━━━━━━━━\n"
                     f"👤 الـفـائـز : {m.from_user.first_name}\n"
                     f"⏱️ الـوقـت : {elapsed_time} ثـانـيـة\n"
-                    "💰 الـجـوائـز : +100 نـقـطـة"
+                    "💰 الـجـوائـز : +100 ذهـبـة"
                 )
                 bot.reply_to(m, win_text)
             
@@ -84,5 +77,5 @@ def register_handlers(bot):
                     "شكلك تكتب بصباع واحد.. صح؟ 🤡"
                 ]
                 bot.reply_to(m, random.choice(slow_replies))
-                # حذف التحدي بعد أول رد "بطيء" لضمان عدم إزعاج الشات
+                # حذف التحدي بعد أول رد بطيء
                 del active_challenges[chat_id]

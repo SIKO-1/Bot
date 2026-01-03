@@ -1,36 +1,37 @@
 import db_manager
 from telebot import types
 
-# هوية صاحب السيادة
 EMPEROR_ID = 5860391324
 
 def register_handlers(bot):
 
-    # 🛑 حارس البوابة الإمبراطوري
-    # بما أن الملف سُمي بـ __cmd_ban سيتم تحميله قبل الألعاب والمتجر
-    @bot.message_handler(func=lambda m: db_manager.get_user(m.from_user.id).get("banned") == True)
-    def stop_access(m):
-        # صمت ملكي مطبق.. لا رد ولا استجابة للمنبوذين
-        return
+    # 🛑 حارس البوابة (Middleware)
+    # هذا الفلتر يعمل على كل رسالة قبل أن تذهب لأي أمر آخر
+    @bot.message_handler(func=lambda m: True, priority=1)
+    def security_check(m):
+        # فحص هل الشخص محظور في قاعدة البيانات
+        user_data = db_manager.get_user(m.from_user.id)
+        if user_data and user_data.get("banned") == True:
+            # إذا كان محظوراً، نوقف المعالجة فوراً ولا نسمح للرسالة بالانتقال للأوامر الأخرى
+            return
+        
+        # إذا لم يكن محظوراً، نسمح للرسالة بالمرور للأوامر التالية
+        bot.process_new_messages([m])
 
     # 💀 مرسوم النفي (الحظر)
     @bot.message_handler(func=lambda m: m.text == "حظر" and m.from_user.id == EMPEROR_ID)
-    def ban_command(m):
+    def ban_action(m):
         if m.reply_to_message:
             target_id = m.reply_to_message.from_user.id
-            target_name = m.reply_to_message.from_user.first_name
-            
             db_manager.update_user(target_id, {"banned": True})
-            bot.reply_to(m, f"💀 **مـرسـوم الإقـصـاء**\n\nلقد أُغلق باب الإمبراطورية في وجه {target_name}! لن يسمع منه البوت ولن يجيبه، فقد نُبذ وراء الأسوار.")
+            bot.reply_to(m, "💀 **مـرسـوم الإقـصـاء**\n\nلقد أُغلق باب الإمبراطورية في وجهه! لن يسمع منه البوت ولن يجيبه.")
         else:
-            bot.reply_to(m, "👑 **يا جلالة الإمبراطور..** أشر بيمينك (بالرد) على من تريد إقصاءه من رحابنا.")
+            bot.reply_to(m, "👑 يا صاحب الجلالة، أشر بالرد على من تريد إقصاءه.")
 
     # ✨ مرسوم العفو (إلغاء الحظر)
-    @bot.message_handler(func=lambda m: m.text == "عفو" and m.from_user.id == EMPEROR_ID)
-    def unban_command(m):
+    @bot.message_handler(func=lambda m: m.text == "الغاء الحظر" and m.from_user.id == EMPEROR_ID)
+    def unban_action(m):
         if m.reply_to_message:
             target_id = m.reply_to_message.from_user.id
             db_manager.update_user(target_id, {"banned": False})
-            bot.reply_to(m, "✨ **مـكـرمـة مـلـكـيـة**\n\nلقد شمله عفو الإمبراطور العظيم! أُعيد العبد إلى كنف الدولة.")
-        else:
-            bot.reply_to(m, "👑 **يا سيدي الإمبراطور..** من هو العبد الذي نال عفوك الكريم؟ رد على رسالته.")
+            bot.reply_to(m, "✨ **مـكـرمـة مـلـكـيـة**\n\nلقد رُفع الحظر بفضل جود الإمبراطور.")

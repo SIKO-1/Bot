@@ -1,16 +1,10 @@
 import random
 from telebot import types
-
-# نظام النقاط المرتبط بالـ Volume
-try:
-    from db_manager import get_user, update_user
-except:
-    def get_user(uid): return {"balance": 1000}
-    def update_user(uid, k, v): pass
+import db_manager # الربط بالخزنة الملكية
 
 def register_handlers(bot):
     
-    # قاعدة البيانات (الدولة: العاصمة)
+    # قاعدة البيانات (الدولة: العاصمة) - كما هي بدون تغيير
     CAPITALS_DB = {
         "العراق": "بغداد", "السعودية": "الرياض", "مصر": "القاهرة", "سوريا": "دمشق",
         "الأردن": "عمان", "فلسطين": "القدس", "لبنان": "بيروت", "الكويت": "الكويت",
@@ -42,7 +36,7 @@ def register_handlers(bot):
             "┗━━━━━━━ ● ━━━━━━━┛\n\n"
             "⚡️ مـن الأسـرع ؟\n"
             f"🌍 مـا هـي عـاصـمـة : [ **{country}** ]\n\n"
-            "💰 الـجـائزة : 40 نـقـطـة\n"
+            "💰 الـجـائزة : 40 ذهبة\n"
             "⚠️ أرسل الإجابة الآن في الشات!"
         )
         bot.send_message(chat_id, text, parse_mode="Markdown")
@@ -50,23 +44,29 @@ def register_handlers(bot):
     @bot.message_handler(func=lambda m: m.chat.id in active_capitals)
     def check_capital(m):
         chat_id = m.chat.id
+        # تجنب معالجة الأوامر كإجابات (مثل "مسح" أو "ايدي") لتفادي التعليق
+        if m.text and m.text.startswith(('/', '!', '#')):
+            return
+
         correct_answer = active_capitals[chat_id]
         
-        # التأكد من مطابقة الإجابة (تجاهل الهمزات البسيطة لسهولة اللعب)
-        user_answer = m.text.strip().replace("أ", "ا").replace("إ", "ا")
-        normalized_correct = correct_answer.replace("أ", "ا").replace("إ", "ا")
+        # تحسين مطابقة الإجابة (تطبيع الحروف)
+        def normalize(t):
+            return t.strip().replace("أ", "ا").replace("إ", "ا").replace("آ", "ا").replace("ة", "ه")
 
-        if user_answer == normalized_correct:
+        if normalize(m.text) == normalize(correct_answer):
             uid = m.from_user.id
-            user_bal = get_user(uid).get("balance", 0)
-            update_user(uid, "balance", user_bal + 40)
+            
+            # إضافة الذهب للخزنة الملكية
+            db_manager.update_user_gold(uid, 40)
             
             win_text = (
                 "⌯ غـزو جـغـرافـي نـاجـح ⌯\n"
                 "━━━━━━━━━━━━━━\n"
                 f"👤 الـفـائـز : {m.from_user.first_name}\n"
                 f"✅ الإجـابـة : {correct_answer}\n"
-                "💰 الـجـوائـز : +40 نـقـطـة"
+                "💰 الـجـوائـز : +40 ذهـبـة"
             )
             bot.reply_to(m, win_text)
+            # مسح اللعبة فوراً لتحرير البوت
             del active_capitals[chat_id]

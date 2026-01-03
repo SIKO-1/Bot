@@ -1,16 +1,10 @@
 import random
 from telebot import types
-
-# محاولة استيراد قاعدة البيانات (Volume)
-try:
-    from db_manager import get_user, update_user
-except:
-    def get_user(uid): return {"balance": 0}
-    def update_user(uid, k, v): pass
+import db_manager # الربط بالخزنة الملكية
 
 def register_handlers(bot):
     
-    # البنك الكامل لأسئلة المليون (45 سؤال)
+    # البنك الكامل لأسئلة المليون (45 سؤال) - كما هو بدون تغيير
     QUESTIONS_DB = {
         "easy": [
             {"q": "ما هو لون السماء في النهار الصافي؟", "o": ["أزرق", "أخضر", "أحمر"], "a": "أزرق"},
@@ -71,7 +65,6 @@ def register_handlers(bot):
     @bot.message_handler(func=lambda m: m.text == "اربح")
     def start_game(m):
         uid = m.from_user.id
-        # سحب 5 أسئلة عشوائية من كل مستوى لتكوين 15 سؤالاً للجولة
         session_qs = random.sample(QUESTIONS_DB["easy"], 5) + \
                      random.sample(QUESTIONS_DB["medium"], 5) + \
                      random.sample(QUESTIONS_DB["hard"], 5)
@@ -89,7 +82,6 @@ def register_handlers(bot):
         opts = q_data['o']
         
         if hint_used and active_games[uid].get('just_hinted'):
-            # حذف إجابة واحدة (تبقى الإجابة الصحيحة وواحدة خاطئة)
             displayed_opts = [q_data['a'], random.choice([o for o in opts if o != q_data['a']])]
             active_games[uid]['just_hinted'] = False
         else:
@@ -109,7 +101,7 @@ def register_handlers(bot):
             "      ⌯ مـلـيـونـيـة الإمـبـراطـور ⌯\n"
             "┗━━━━━━━ ● ━━━━━━━┛\n\n"
             f"  » الـسـؤال : [ {step} / 15 ]\n"
-            f"  » الـجـائـزة الـقـادمة : {PRIZES[step]} نـقـطـة\n\n"
+            f"  » الـجـائـزة الـقـادمة : {PRIZES[step]} ذهـبـة\n\n"
             f"❓ [ {q_data['q']} ]"
         )
 
@@ -130,8 +122,9 @@ def register_handlers(bot):
 
         if call.data == "mw_quit":
             prize = PRIZES[step-1]
-            update_user(uid, "balance", get_user(uid).get("balance", 0) + prize)
-            bot.edit_message_text(f"💰 قرر الإمبراطور {call.from_user.first_name} الانسحاب!\n✅ الربح المضمون: {prize} نقطة.", call.message.chat.id, call.message.message_id)
+            # ربط الذهب بالخزنة
+            db_manager.update_user_gold(uid, prize)
+            bot.edit_message_text(f"💰 قرر الإمبراطور {call.from_user.first_name} الانسحاب!\n✅ الربح المضمون: {prize} ذهبة تم إيداعها بخزنتك.", call.message.chat.id, call.message.message_id)
             del active_games[uid]
             return
 
@@ -145,13 +138,14 @@ def register_handlers(bot):
         choice = call.data.replace("mw_", "")
         if choice == q_data['a']:
             if step == 15:
-                update_user(uid, "balance", get_user(uid).get("balance", 0) + 1000)
-                bot.edit_message_text(f"🎊 كفووو! فزت بالمليون (1000 نقطة) يا إمبراطور! 🎊", call.message.chat.id, call.message.message_id)
+                # جائزة المليون الكبرى
+                db_manager.update_user_gold(uid, 1000)
+                bot.edit_message_text(f"🎊 كفووو! فزت بالمليون (1000 ذهبة) يا إمبراطور! 🎊", call.message.chat.id, call.message.message_id)
                 del active_games[uid]
             else:
                 game['step'] += 1
                 game['current_q'] = game['questions'][game['step']-1]
                 send_quiz(call.message.chat.id, uid, game['step'], game['current_q'], game['hint_used'], call.message.message_id)
         else:
-            bot.edit_message_text(f"❌ للاسف إجابة خاطئة!\n💡 الإجابة كانت: {q_data['a']}\n📉 طارت عليك النقاط!", call.message.chat.id, call.message.message_id)
+            bot.edit_message_text(f"❌ للاسف إجابة خاطئة!\n💡 الإجابة كانت: {q_data['a']}\n📉 طارت عليك الجائزة!", call.message.chat.id, call.message.message_id)
             del active_games[uid]

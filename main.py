@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 # تحميل الإعدادات
 load_dotenv()
 TOKEN = os.getenv('BOT_TOKEN')
-ADMIN_ID = 123456789  # ⚠️ ضع هنا الأيدي (ID) الخاص بك يا إمبراطور
+ADMIN_ID = 5860391324  # ⚠️ ضع هنا الأيدي (ID) الخاص بك يا إمبراطور
 bot = telebot.TeleBot(TOKEN)
 
 print("🚀 الإمبراطورية تستعد للنهوض...")
@@ -41,7 +41,7 @@ loaded_count = load_commands()
 print(f"📊 إجمالي الأنظمة النشطة الآن: {loaded_count}")
 
 # --- 🔄 أمر "رس" لتحديث الأنظمة من التليجرام ---
-@bot.message_handler(func=lambda m: m.text == "رس")
+@bot.message_handler(func=lambda m: m.text == "رست")
 def restart_bot(message):
     if message.from_user.id == ADMIN_ID:
         bot.reply_to(message, "⚙️ أبشر يا إمبراطور.. جاري إعادة مسح ملفات الأوامر والألعاب!")

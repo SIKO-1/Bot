@@ -1,13 +1,7 @@
 import random
 import time
 from telebot import types
-
-# نظام النقاط المرتبط بالـ Volume
-try:
-    from db_manager import get_user, update_user
-except:
-    def get_user(uid): return {"balance": 0}
-    def update_user(uid, k, v): pass
+import db_manager # الربط بالخزنة الملكية
 
 def register_handlers(bot):
     active_math_challenges = {}
@@ -16,7 +10,7 @@ def register_handlers(bot):
     def start_math_game(m):
         chat_id = m.chat.id
         
-        # توليد مسألة عشوائية من بين 50 مستوى صعوبة
+        # توليد مسألة عشوائية
         op = random.choice(['+', '-', '*'])
         
         if op == '+':
@@ -44,7 +38,7 @@ def register_handlers(bot):
             "┗━━━━━━━ ● ━━━━━━━┛\n\n"
             f"  » أوجد ناتج العملية : [ {question} ]\n\n"
             "🕒 أمامك 15 ثانية للحل!\n"
-            "💰 الـجـائـزة : 50 نـقـطـة"
+            "💰 الـجـائـزة : 50 ذهبة"
         )
         bot.send_message(chat_id, text)
 
@@ -53,24 +47,28 @@ def register_handlers(bot):
         chat_id = m.chat.id
         challenge = active_math_challenges[chat_id]
         
+        # إذا كانت الإجابة صحيحة
         if m.text == challenge["answer"]:
             elapsed = round(time.time() - challenge["start_time"], 2)
             
             if elapsed <= 15:
                 uid = m.from_user.id
-                bal = get_user(uid).get("balance", 0)
-                update_user(uid, "balance", bal + 50)
+                # إضافة الذهب للخزنة الحقيقية
+                db_manager.update_user_gold(uid, 50)
                 
                 win_text = (
                     "⌯ تـم الـتـحـقـق مـن الإجـابـة ⌯\n"
                     "━━━━━━━━━━━━━━\n"
                     f"👤 الـفـائـز : {m.from_user.first_name}\n"
                     f"⚡ الـزمـن : {elapsed} ثانية\n"
-                    "✅ الإجـابـة : صـحـيـحـة\n"
-                    "💰 الـجـوائـز : +50 نـقـاط"
+                    "✅ الإجـابـة : صـحـيـحـة (يا عبقري)\n"
+                    "💰 الـجـوائـز : +50 ذهـبـة"
                 )
                 bot.reply_to(m, win_text)
+                del active_math_challenges[chat_id] # إنهاء التحدي فوراً
             else:
-                bot.reply_to(m, f"🐢 إجابة صحيحة ولكنك بطيء! استغرقت {elapsed} ثانية والحد المسموح 15.")
-            
-            del active_math_challenges[chat_id]
+                bot.reply_to(m, f"🐢 إجابة صحيحة ولكنك بطيء! استغرقت {elapsed} ثانية.. انتهى الوقت.")
+                del active_math_challenges[chat_id]
+        
+        # إذا كانت الإجابة خاطئة لا نحذف التحدي لنعطي فرصة لغيره، 
+        # إلا إذا انتهى الوقت (اختياري)

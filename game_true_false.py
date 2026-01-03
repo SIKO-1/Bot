@@ -1,16 +1,9 @@
 import random
 from telebot import types
-
-# نظام النقاط المرتبط بالـ Volume
-try:
-    from db_manager import get_user, update_user
-except:
-    def get_user(uid): return {"balance": 0}
-    def update_user(uid, k, v): pass
+import db_manager # الربط بالذاكرة الدائمة
 
 def register_handlers(bot):
     
-    # قائمة الـ 50 سؤالاً المنظمة (بدون إيموجيات داخلية)
     TF_QUESTIONS = {
         1: {"q": "الحوت يتنفس من الرئتين وليس الخياشيم.", "a": "صح"},
         2: {"q": "الشمس تدور حول الأرض مرة كل سنة.", "a": "خطأ"},
@@ -41,7 +34,6 @@ def register_handlers(bot):
         27: {"q": "الجسم يتوقف عن النمو تمامًا بعد سن 18.", "a": "خطأ"},
         28: {"q": "القمر له جانب لا نراه من الأرض.", "a": "صح"},
         29: {"q": "الزجاج سائل بطيء الحركة.", "a": "خطأ"},
-        30: {"q": "انت اعمى.", "a": "صح"},
         31: {"q": "القهوة تُعد منبّهًا للجهاز العصبي.", "a": "صح"},
         32: {"q": "كل الفيروسات تسبب أمراضًا خطيرة.", "a": "خطأ"},
         33: {"q": "الطيور لا تملك مثانة بولية.", "a": "صح"},
@@ -69,20 +61,19 @@ def register_handlers(bot):
         q_id = random.choice(list(TF_QUESTIONS.keys()))
         item = TF_QUESTIONS[q_id]
         
-        # الزخرفة الإمبراطورية الفخمة
         text = (
             "┏━━━━━━━ ● ━━━━━━━┓\n"
             "      ⌯ تـحـدي صـح و خـطـأ ⌯\n"
             "┗━━━━━━━ ● ━━━━━━━┛\n\n"
             f"  » الـمـعـلـومـة : [ {item['q']} ]\n\n"
-            "💰 الـجـائـزة : 50 نـقـطـة"
+            "💰 الـجـائـزة : 50 ذهبة [cite: 2026-01-02]"
         )
         
         markup = types.InlineKeyboardMarkup(row_width=2)
-        btn_true = types.InlineKeyboardButton("✅ صـح", callback_data=f"tf_{q_id}_صح")
-        btn_false = types.InlineKeyboardButton("❌ خـطـأ", callback_data=f"tf_{q_id}_خطأ")
-        
-        markup.add(btn_true, btn_false)
+        markup.add(
+            types.InlineKeyboardButton("✅ صـح", callback_data=f"tf_{q_id}_صح"),
+            types.InlineKeyboardButton("❌ خـطـأ", callback_data=f"tf_{q_id}_خطأ")
+        )
         bot.reply_to(m, text, reply_markup=markup)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("tf_"))
@@ -90,28 +81,26 @@ def register_handlers(bot):
         _, q_id_str, user_choice = call.data.split("_")
         q_id = int(q_id_str)
         item = TF_QUESTIONS[q_id]
-        correct_answer = item["a"]
         uid = call.from_user.id
         
-        if user_choice == correct_answer:
-            points = 50
-            bal = get_user(uid).get("balance", 0)
-            update_user(uid, "balance", bal + points)
+        if user_choice == item["a"]:
+            # إضافة الذهب الحقيقي للخزنة
+            db_manager.update_user_gold(uid, 50)
             
             win_text = (
-                "⌯ تـم الـتـحـقـق مـن الإجـابـة ⌯\n"
+                "⌯ نـتـيـجـة الـتـحدي ⌯\n"
                 "━━━━━━━━━━━━━━\n"
-                f"👤 الـفـائـز : {call.from_user.first_name}\n"
-                "✅ الإجـابـة : صـحـيـحـة (كفو يا ذكي)\n"
-                f"💰 الـجـوائـز : +{points} نـقـاط"
+                f"👤 الـعـبـقـري : {call.from_user.first_name}\n"
+                "✅ الإجـابـة : صـحـيـحـة تماماً\n"
+                "💰 الـجـوائـز : +50 ذهـبـة"
             )
             bot.edit_message_text(win_text, chat_id=call.message.chat.id, message_id=call.message.message_id)
         else:
             fail_text = (
-                "⌯ تـم الـتـحـقـق مـن الإجـابـة ⌯\n"
+                "⌯ نـتـيـجـة الـتـحدي ⌯\n"
                 "━━━━━━━━━━━━━━\n"
-                f"👤 الـخـاسـر : {call.from_user.first_name}\n"
-                f"❌ الإجـابـة : خـاطـئـة (ركز يا بطل)\n"
-                f"💡 الـصـحـيـح : {correct_answer}"
+                f"👤 الـمـسـتـعـجـل : {call.from_user.first_name}\n"
+                f"❌ الإجـابـة : خـاطـئـة للأسف\n"
+                f"💡 الـصـحـيـح كـان : {item['a']}"
             )
             bot.edit_message_text(fail_text, chat_id=call.message.chat.id, message_id=call.message.message_id)

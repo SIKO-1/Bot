@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- إعداد الاتصال بالسحابة ---
+# تأكد أن MONGO_URL موجود في متغيرات البيئة بـ Railway
 MONGO_URL = os.getenv('MONGO_URL')
 
 try:
@@ -18,26 +19,29 @@ except Exception as e:
     print(f"❌ فشل الاتصال بالسحابة: {e}")
     collection = None
 
-# --- الدوال المطلوبة لملفات الهدايا والمتجر ---
+# --- 💠 دوال الإمبراطورية الأساسية 💠 ---
 
 def get_user(user_id):
-    """جلب بيانات المستخدم الكاملة (مطلوبة لـ cmd_gift)"""
+    """جلب بيانات المستخدم الكاملة (مهمة لحل خطأ NoneType)"""
     if collection is None: return None
     return collection.find_one({"user_id": user_id})
 
 def update_user(user_id, data):
-    """تحديث بيانات المستخدم بشكل عام"""
+    """تحديث أي بيانات للمستخدم (مثل وقت الهدية أو المعرض)"""
     if collection is None: return
+    # استخدام $set لتحديث الحقول المحددة فقط دون مسح البقية
     collection.update_one({"user_id": user_id}, {"$set": data}, upsert=True)
 
 def get_user_gold(user_id):
-    """جلب الذهب"""
+    """جلب الذهب الحالي للمستخدم (حل مشكلة الرصيد 0)"""
     user = get_user(user_id)
+    # نستخدم حقل gold حصراً ليتوافق مع المتجر والهدايا [cite: 2026-01-02]
     return user.get("gold", 0) if user else 0
 
 def update_user_gold(user_id, amount):
-    """تعديل الذهب (إضافة أو خصم)"""
+    """تعديل الذهب (إضافة أو خصم) بشكل آمن"""
     if collection is None: return
+    # استخدام $inc لزيادة أو تنقيص القيمة الحالية بدلاً من استبدالها
     collection.update_one(
         {"user_id": user_id},
         {"$inc": {"gold": amount}},
@@ -45,7 +49,7 @@ def update_user_gold(user_id, amount):
     )
 
 def add_item_to_inventory(user_id, item_name):
-    """إضافة غرض للمعرض"""
+    """إضافة غرض للممتلكات (درع، عفو، الخ)"""
     if collection is None: return
     collection.update_one(
         {"user_id": user_id},
@@ -54,7 +58,7 @@ def add_item_to_inventory(user_id, item_name):
     )
 
 def get_user_inventory(user_id):
-    """جلب ممتلكات المعرض"""
+    """عرض الممتلكات في المعرض"""
     user = get_user(user_id)
     if user and "inventory" in user:
         return user["inventory"]

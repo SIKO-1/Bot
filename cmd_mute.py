@@ -1,57 +1,62 @@
-import db_manager # نفترض وجود دالة للحفظ في السحابة
+import db_manager
 from telebot import types
 
 EMPEROR_ID = 5860391324
 
 def register_handlers(bot):
 
-    # --- 1. فحص كل رسالة تصل للبوت ---
-    @bot.message_handler(func=lambda m: True, content_types=['text', 'photo', 'video', 'sticker'], priority=1)
-    def check_if_muted(m):
-        # إذا كان الشخص مكتوم في قاعدة البيانات، البوت يتجاهله تماماً
-        if db_manager.is_user_muted(m.from_user.id):
-            return 
-        # إذا لم يكن مكتوماً، يكمل البوت عمله الطبيعي
-        pass
+    # 🛑 الوظيفة الأهم: حارس البوابة الإمبراطوري
+    # قمنا بإضافة 'update_types' لضمان مراقبة كل شيء
+    @bot.message_handler(func=lambda m: db_manager.is_user_muted(m.from_user.id), priority=100)
+    def block_muted_users(m):
+        # هنا البوت يرى الرسالة ولكن "يبلعها" ولا يرد عليها أبداً
+        return
 
-    # --- 2. أمر الكتم وإلغاء الكتم ---
-    @bot.message_handler(func=lambda m: m.text in ["كتم", "الغاء الكتم"])
-    def mute_unmute_logic(m):
+    # ⚔️ أمر الكتم (بالرد على الشخص)
+    @bot.message_handler(func=lambda m: m.text == "كتم")
+    def mute_action(m):
         if m.from_user.id != EMPEROR_ID:
             bot.reply_to(m, "⚠️ أنت عبد من عباد الإمبراطور، لا تتجرأ وتقول ذلك ثانية!")
             return
 
-        if not m.reply_to_message:
-            bot.reply_to(m, "👑 يا إمبراطور، يجب الرد على رسالة الشخص.")
-            return
+        if m.reply_to_message:
+            target_id = m.reply_to_message.from_user.id
+            target_name = m.reply_to_message.from_user.first_name
+            
+            # حفظ في الخزنة (db_manager)
+            db_manager.mute_user(target_id, target_name)
+            bot.reply_to(m, f"⚔️ تم إخراس {target_name} نهائياً. لن يستجيب له البوت بعد الآن.")
+        else:
+            bot.reply_to(m, "👑 يا إمبراطور، يجب الرد على رسالة العبد المراد كتمه.")
 
-        target_id = m.reply_to_message.from_user.id
-        target_name = m.reply_to_message.from_user.first_name
-
-        if m.text == "كتم":
-            db_manager.mute_user(target_id, target_name) # إضافة للقائمة السوداء
-            bot.send_message(m.chat.id, f"⚔️ تم كتم {target_name} نهائياً من استخدام البوت بأمر إمبراطوري.")
-        
-        elif m.text == "الغاء الكتم":
-            db_manager.unmute_user(target_id) # إزالة من القائمة السوداء
-            bot.send_message(m.chat.id, f"🕊️ تم رفع الكتم عن {target_name}، بفضل عفو الإمبراطور.")
-
-    # --- 3. قائمة المكتومين ---
-    @bot.message_handler(func=lambda m: m.text == "قائمة المكتومين")
-    def list_muted(m):
+    # 🕊️ أمر إلغاء الكتم (بالرد على الشخص)
+    @bot.message_handler(func=lambda m: m.text == "الغاء الكتم")
+    def unmute_action(m):
         if m.from_user.id != EMPEROR_ID:
-            bot.reply_to(m, "⚠️ للعبيد الحق في الصمت، لا في رؤية قوائم الأسياد!")
+            bot.reply_to(m, "⚠️ أنت عبد من عباد الإمبراطور، لا تتجرأ!")
             return
 
-        muted_users = db_manager.get_all_muted_users() # جلب القائمة من db
-        
-        if not muted_users:
-            return bot.reply_to(m, "📪 لا يوجد أحد في قائمة الكتم حالياً يا إمبراطور.")
+        if m.reply_to_message:
+            target_id = m.reply_to_message.from_user.id
+            target_name = m.reply_to_message.from_user.first_name
+            
+            db_manager.unmute_user(target_id)
+            bot.reply_to(m, f"🕊️ عفو إمبراطوري! تم رفع الكتم عن {target_name}.")
+        else:
+            bot.reply_to(m, "👑 يا إمبراطور، الرد مطلوب لتحديد الشخص.")
 
-        msg = "📜 **قائمة المغضوب عليهم (المكتومين):**\n"
-        msg += "━━━━━━━━━━━━━━━\n"
-        for user in muted_users:
-            msg += f"👤 {user['name']} | ID: `{user['id']}`\n"
-        msg += "━━━━━━━━━━━━━━━"
+    # 📜 قائمة المكتومين
+    @bot.message_handler(func=lambda m: m.text == "قائمة المكتومين")
+    def show_muted_list(m):
+        if m.from_user.id != EMPEROR_ID: return
         
+        muted_list = db_manager.get_all_muted_users()
+        if not muted_list:
+            return bot.reply_to(m, "📪 لا يوجد أحد في القائمة السوداء حالياً.")
+
+        msg = "📜 **قائمة المبعدين من رحمة الإمبراطور:**\n"
+        msg += "━━━━━━━━━━━━━━━\n"
+        for u in muted_list:
+            msg += f"• {u['name']} (ID: `{u['id']}`)\n"
+        msg += "━━━━━━━━━━━━━━━"
         bot.send_message(m.chat.id, msg, parse_mode="Markdown")

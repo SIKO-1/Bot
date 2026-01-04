@@ -4,7 +4,6 @@ import importlib
 import sys
 import time
 from dotenv import load_dotenv
-import db_manager # استدعاء الخزينة لضمان الحفظ
 
 # --- إعدادات الرقابة الملكية ---
 load_dotenv()
@@ -43,56 +42,24 @@ def load_commands():
 loaded_count = load_commands()
 print(f"📊 إجمالي الأنظمة النشطة الآن: {loaded_count}")
 
-# --- 🛡️ نظام الحفظ التلقائي (يمنع تصفير الذهب) ---
-@bot.message_handler(func=lambda m: True)
-def auto_save_handler(message):
-    """حفظ نشاط المستخدم فوراً قبل معالجة أي أمر"""
-    try:
-        db_manager.increment_messages(message.from_user.id)
-    except:
-        pass
-    # السماح للأوامر الأخرى (مثل هدية وفلوسي) بالعمل
-    bot.process_new_messages([message])
-
-# --- 🔔 برقية الانبعاث (تنبيه التشغيل) ---
+# --- 🔔 برقية الانبعاث ---
 try:
     bot.send_message(ADMIN_ID, "مراسم الانبعاث: استعادت روح الإمبراطورية وعيها الكامل الآن.")
-except Exception as e:
-    print(f"⚠️ تعذر إرسال برقية التشغيل: {e}")
+except: pass
 
-# --- 🔄 أمر "رست" لتحديث الأنظمة ---
+# --- 🔄 أمر "رست" ---
 @bot.message_handler(func=lambda m: m.text == "رست")
 def restart_bot(message):
     if message.from_user.id == ADMIN_ID:
-        bot.reply_to(message, "⚙️ أبشر يا إمبراطور.. جاري إعادة مسح ملفات الأوامر والألعاب!")
-        try:
-            count = load_commands()
-            bot.send_message(message.chat.id, f"✅ تم التحديث! الأنظمة النشطة الآن: {count}")
-        except Exception as e:
-            bot.reply_to(message, f"❌ حدث خطأ أثناء التحديث: {e}")
-    else:
-        bot.reply_to(message, "❌ هذا الأمر للإمبراطور فقط!")
+        bot.reply_to(message, "⚙️ جاري إعادة مسح ملفات الأوامر...")
+        count = load_commands()
+        bot.send_message(message.chat.id, f"✅ تم التحديث! الأنظمة: {count}")
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     bot.reply_to(message, "🔱 كل أنظمة الإمبراطورية تعمل الآن تحت أمرك!")
 
-# --- 🛡️ نظام مراقبة الأخطاء والاستمرارية (The Eternal Soul) ---
+# --- 🛡️ تشغيل البوت ---
 if __name__ == "__main__":
-    print("✅ البوت متصل الآن وجاهز للاستخدام..")
-    
-    while True:
-        try:
-            bot.polling(none_stop=True, timeout=60)
-        except Exception as e:
-            INTERNAL_ERRORS += 1
-            error_msg = f"⚠️ اضطراب في الروح: حدث خطأ داخلي.\nالسبب: {e}"
-            print(error_msg)
-            
-            # إبلاغ الإمبراطور بالخطأ الحقيقي فور وقوعه
-            try:
-                bot.send_message(ADMIN_ID, error_msg)
-            except:
-                pass
-            
-            time.sleep(5)  # انتظار بسيط قبل العودة للحياة
+    print("✅ البوت متصل الآن..")
+    bot.infinity_polling()

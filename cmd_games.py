@@ -2,11 +2,7 @@ import telebot
 import db_manager
 
 # الكلمات المفتاحية لفتح قائمة الألعاب
-GAME_TRIGGERS = [
-    'العاب', 'الألعاب', 'الالعاب', 'لعبات', 'لعبة'
-]
-
-# الإمبراطور للإبلاغ عن أي خطأ
+GAME_TRIGGERS = ['العاب', 'الألعاب', 'الالعاب', 'لعبات', 'لعبة']
 EMPEROR_ID = 5860391324
 
 def register_handlers(bot):
@@ -14,19 +10,16 @@ def register_handlers(bot):
     @bot.message_handler(func=lambda m: m.text and m.text.strip().lower() in [g.lower() for g in GAME_TRIGGERS])
     def send_grand_menu(m):
         try:
-            # محاولة جلب بيانات المستخدم بدون توقف
-            try:
-                user_info = db_manager.get_user(m.from_user.id)
-            except Exception as e:
-                user_info = None
-                bot.send_message(EMPEROR_ID, f"⚠️ خطأ في db_manager.get_user مع {m.from_user.id}: {e}")
-
+            # التحقق من سجلات السحابة الخارجية
+            user_info = db_manager.get_user(m.from_user.id)
+            
             if user_info and user_info.get("banned"):
-                return  # صمت ملكي للمنبوذين
+                return  # تجاهل المنفيين من الإمبراطورية
 
             menu_text = (
-                "⌔︙قائمه العاب الإمبراطورية\n"
-                "—————————————\n"
+                "╔═════════════════╗\n"
+                "    ⌔︙قائمة ألعاب الإمبراطورية \n"
+                "╚═════════════════╝\n\n"
                 "⌔︙المختلف » لعبة المختلف\n"
                 "⌔︙امثله » لعبة الامثله\n"
                 "⌔︙العكس « لعبة عكس الكلمه\n"
@@ -60,20 +53,19 @@ def register_handlers(bot):
                 "⌔︙ايموجي » لعبة اسم الايموجي\n"
                 "⌔︙اغاني » لعبة اسم الفنان\n"
                 "⌔︙تحدي » لعبة صراحه مع تاك عشوائي\n"
-                "⌔︙الالعاب المتطوره & الالعاب الاحترافيه\n"
+                "━━━━━━━━━━━━━━━\n"
                 "⌔︙لعبة xo » لعبة xo شفافه\n"
                 "⌔︙رقم ، ارقام » لعبة ارقام عشوائية\n"
                 "⌔︙المليون » لعبة من سيربح المليون\n"
-                "⌔︙نشط عقلك » لعبة اسئله منوعه\n"
-                "—————————————\n"
+                "━━━━━━━━━━━━━━━\n"
                 "💡 اكتب اسم اللعبة لتبدأ المتعة!"
             )
 
             bot.reply_to(m, menu_text)
 
         except Exception as e:
-            # أي خطأ كبير يتم الإبلاغ عنه للإمبراطور فقط
+            # إرسال تقرير العطل لغرفة العمليات الإمبراطورية
             try:
-                bot.send_message(EMPEROR_ID, f"❌ خطأ في cmd_games.py مع {m.from_user.id} ({m.from_user.first_name}): {e}")
+                bot.send_message(EMPEROR_ID, f"❌ عطل في قائمة الألعاب: {e}")
             except:
                 pass

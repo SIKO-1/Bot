@@ -3,99 +3,91 @@ import threading
 import random
 import db_manager
 
-# المعرف الخاص بك يا صاحب السيادة
+# القائمة الملكية للمعرفات
 ADMIN_ID = 5860391324
-
-# مخزن لإدارة الحدث في جميع المجموعات
-active_chats = {} 
+duel_active = False
+active_chats = {}
 
 def register_handlers(bot):
     
-    @bot.message_handler(commands=['خصم'])
+    @bot.message_handler(commands=['الخصم'])
     def broadcast_duel(m):
-        # التحقق من أن القائم بالأمر هو الإمبراطور فقط
+        global duel_active
+        # لا يطلق بوق الحرب إلا الإمبراطور
         if m.from_user.id != ADMIN_ID:
-            return bot.reply_to(m, "هذا النذير لا يطلقه إلا الإمبراطور.")
+            return bot.reply_to(m, "هذا النداء لا يطلقه إلا صاحب العرش.")
 
-        # قائمة المجموعات (يجب أن تكون مخزنة في قاعدة بياناتك عند انضمام البوت لها)
-        # هنا سنفترض وجود دالة تجلب كل معرفات المجموعات
+        if duel_active:
+            return bot.reply_to(m, "المعركة قائمة بالفعل في أرجاء الإمبراطورية.")
+
+        duel_active = True
+        # جلب المجموعات من السحاب (تأكد من وجود دالة get_all_active_chats في db_manager)
         all_groups = db_manager.get_all_active_chats() 
 
-        response = (
+        announcement = (
             "╔═════════════════╗\n"
-            "    نذير الحرب العام \n"
+            "    نذير الحرب الشامل \n"
             "╚═════════════════╝\n\n"
-            "أيها المحاربون في شتى بقاع الأرض\n"
-            "لقد استدعى الإمبراطور الخصم المجهول الآن\n"
-            "الاسم: UNKNOWN\n\n"
-            "أمامكم ثلاثون ثانية لإثبات فصاحتكم\n"
-            "الكلمة هي سلاحكم الحاد.. ابدأوا الهجوم\n"
+            "أيها المحاربون.. استعدوا للهجوم\n"
+            "الخصم: UNKNOWN\n"
+            "المهلة: 30 ثانية\n\n"
+            "اكتبوا أي كلمة الآن لتكون سلاحكم\n"
             "━━━━━━━━━━━━━━━\n"
-            "ساحات القصر مفتوحة الآن للجميع"
+            "المواجهة بدأت الآن"
         )
 
         for chat_id in all_groups:
             try:
-                bot.send_message(chat_id, response)
-                active_chats[chat_id] = {"start_time": time.time(), "participants": []}
-                # جدولة نهاية الحدث لكل مجموعة بشكل مستقل
-                threading.Timer(30.0, end_broadcast_duel, [bot, chat_id]).start()
+                bot.send_message(chat_id, announcement)
+                active_chats[chat_id] = {"start_time": time.time(), "damage": 0}
             except:
                 continue
 
-    @bot.message_handler(func=lambda m: m.chat.id in active_chats)
-    def handle_global_attacks(m):
-        chat_data = active_chats.get(m.chat.id)
-        if not chat_data:
-            return
+        # إنهاء الملحمة بعد 30 ثانية
+        threading.Timer(30.0, end_duel_globally, [bot]).start()
 
-        elapsed = time.time() - chat_data["start_time"]
-        if elapsed > 30:
-            return
-
-        word = m.text.strip()
-        word_len = len(word)
-        
+    @bot.message_handler(func=lambda m: duel_active and m.chat.id in active_chats)
+    def handle_attacks(m):
         # تحليل الهجوم بأسلوب ملكي
-        success_rate = random.randint(1, 100)
-        if success_rate > 40:
-            damage = min(99, (word_len * 5) + random.randint(1, 20))
-            attack_msg = (
-                "ضربة موفقة\n"
-                f"المحارب: {m.from_user.first_name}\n"
-                f"السلاح: {word}\n"
-                f"قوة الاختراق: {damage}%\n"
-                "الحالة: هجوم ناجح"
-            )
-            chat_data["participants"].append({"name": m.from_user.first_name, "score": damage})
-        else:
-            attack_msg = (
-                "هجوم فاشل\n"
-                "السبب: ارتباك في ساحة الوغى\n"
-                "الخصم يضحك من ضعف الحيلة"
-            )
-        bot.reply_to(m, attack_msg)
+        word = m.text.strip()
+        if len(word) < 2: return
 
-def end_broadcast_duel(bot, chat_id):
-    if chat_id in active_chats:
-        participants = active_chats[chat_id]["participants"]
-        del active_chats[chat_id]
+        # حساب الضرر بناءً على طول الكلمة وسرعتها
+        damage = min(95, (len(word) * 4) + random.randint(1, 15))
         
-        if not participants:
-            result_text = "خسارة.. سقطت هذه المقاطعة في يد الخصم"
+        # تسجيل الضرر للمجموعة
+        active_chats[m.chat.id]["damage"] += damage
+        
+        # رد سريع على الهجوم
+        if random.random() > 0.4: # لإضفاء عشوائية ذكية
+            bot.reply_to(m, f"هجوم ناجح\nالسلاح: {word}\nالضرر: {damage}%")
         else:
-            total_damage = sum(p['score'] for p in participants)
-            if total_damage > 200:
-                result_text = "فوز ساحق.. دُحر الخصم بفضل فرسانكم"
-            else:
-                result_text = "تعادل.. انسحب الخصم ليعيد الكرة لاحقاً"
+            bot.reply_to(m, "هجوم فاشل.. لقد تفادى الخصم ضربتك بسخرية")
+
+def end_duel_globally(bot):
+    global duel_active, active_chats
+    
+    for chat_id, data in active_chats.items():
+        total = data["damage"]
+        if total > 150:
+            res = "فوز ساحق.. تم سحق الخصم وتشتيت قواه"
+        elif total > 50:
+            res = "تعادل.. انسحب الخصم ليعيد الكرة لاحقاً"
+        else:
+            res = "خسارة.. لقد كانت كلماتكم أضعف من دروع الخصم"
 
         summary = (
             "╔═════════════════╗\n"
-            "    ختام الملحمة الكبرى \n"
+            "    بيان ختام المعركة \n"
             "╚═════════════════╝\n\n"
-            f"النتيجة في هذه الساحة: {result_text}\n"
+            f"النتيجة النهائية: {res}\n"
             "━━━━━━━━━━━━━━━\n"
-            "انقشع الضباب واختفى الخصم.. انتهى الحدث"
+            "انتهت الملحمة.. اختفى الخصم في الظلال"
         )
-        bot.send_message(chat_id, summary)
+        try:
+            bot.send_message(chat_id, summary)
+        except: pass
+
+    # تصفير البيانات للمعركة القادمة
+    active_chats = {}
+    duel_active = False

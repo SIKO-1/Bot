@@ -1,0 +1,4 @@
+commands/
+    cmd_balance.py
+    cmd_gift.py
+    game_dice.py

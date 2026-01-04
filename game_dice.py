@@ -17,8 +17,9 @@ def handle(bot, message):
     dice_msg = bot.send_dice(message.chat.id)
     value = dice_msg.dice.value 
 
-    time.sleep(3.5)  # انتظار توقف النرد
+    time.sleep(3.5)
 
+    # الجوائز والخسائر
     if value >= 5:
         prize = 200
         update_user_gold(uid, prize)
@@ -26,8 +27,8 @@ def handle(bot, message):
             "┏━━━━━━━ ● ━━━━━━━┓\n"
             "         ⌯ فـوز إمـبـراطـوري ⌯\n"
             "┗━━━━━━━ ● ━━━━━━━┛\n\n"
-            f"🔥 الـحـظ يـبـتـسـم لـك : [ {value} ]\n"
-            f"💰 الـجـائزة : +{prize} ذهب\n"
+            f"🔥 الحظ يبتسم لك : [ {value} ]\n"
+            f"💰 الجائزة : +{prize} ذهب\n"
             f"✨ رصيدك الحالي : {user_gold + prize}"
         )
     elif value >= 3:
@@ -35,7 +36,7 @@ def handle(bot, message):
         update_user_gold(uid, prize)
         res_text = (
             "┏━━━━━━━ ● ━━━━━━━┓\n"
-            "         ⌯ حـظ مـتـوسـط ⌯\n"
+            "         ⌯ حظ متوسط ⌯\n"
             "┗━━━━━━━ ● ━━━━━━━┛\n\n"
             f"🎲 النتيجة مقبولة : [ {value} ]\n"
             f"💰 الجائزة : +{prize} ذهب\n"
@@ -46,7 +47,7 @@ def handle(bot, message):
         update_user_gold(uid, penalty)
         res_text = (
             "┏━━━━━━━ ● ━━━━━━━┓\n"
-            "         ⌯ غـضـب الـنـرد ⌯\n"
+            "         ⌯ غضب النرد ⌯\n"
             "┗━━━━━━━ ● ━━━━━━━┛\n\n"
             f"🌚 للأسف حظك عاثر : [ {value} ]\n"
             f"💸 ضريبة الحظ : {penalty} ذهب\n"

@@ -3,65 +3,56 @@ import os
 import importlib
 import sys
 from dotenv import load_dotenv
-from pymongo import MongoClient
 
-# تحميل المتغيرات
+# تحميل المتغيرات السيادية
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
-MONGO_URI = os.getenv("MONGO_URI")  # رابط MongoDB
+EMPEROR_ID = 5860391324
 
 if not TOKEN:
-    raise RuntimeError("❌ BOT_TOKEN غير موجود")
-if not MONGO_URI:
-    raise RuntimeError("❌ MONGO_URI غير موجود")
+    print("❌ خطأ: BOT_TOKEN غير متاح في الخزينة")
+    sys.exit()
 
-# البوت والامبراطور
-EMPEROR_ID = 5860391324
 bot = telebot.TeleBot(TOKEN)
-
-# قاعدة البيانات
-mongo_client = MongoClient(MONGO_URI)
-db = mongo_client["EmperorBotDB"]
-
-# تخزين حالة الأنظمة
 SYSTEM_STATUS = {}
 
 def load_commands():
     SYSTEM_STATUS.clear()
-    files = [
-        f for f in os.listdir(".")
-        if f.startswith(("cmd_", "game_")) and f.endswith(".py")
-    ]
+    # شمولية البحث لتشمل كافة الأنظمة
+    files = [f for f in os.listdir(".") if f.startswith(("cmd_", "game_", "event_")) and f.endswith(".py")]
 
     for file in files:
         module_name = file[:-3]
         try:
             if module_name in sys.modules:
-                del sys.modules[module_name]
-
-            module = importlib.import_module(module_name)
-
-            if hasattr(module, "register_handlers"):
-                module.register_handlers(bot, db)
-                SYSTEM_STATUS[file] = "✅ شغّال"
+                importlib.reload(sys.modules[module_name])
             else:
-                SYSTEM_STATUS[file] = "⚠️ لا يوجد register_handlers"
+                importlib.import_module(module_name)
+
+            module = sys.modules[module_name]
+            # التسجيل بمتغير واحد (bot) لضمان التوافق الشامل
+            if hasattr(module, "register_handlers"):
+                module.register_handlers(bot)
+                SYSTEM_STATUS[file] = "✅ نشط"
+            else:
+                SYSTEM_STATUS[file] = "⚠️ مفقود"
         except Exception as e:
-            SYSTEM_STATUS[file] = f"❌ فشل: {e}"
+            SYSTEM_STATUS[file] = f"❌ عطل: {e}"
 
-# أمر تحديث
-@bot.message_handler(func=lambda m: m.text and m.text.strip().lower() == "تحديث")
+@bot.message_handler(func=lambda m: m.text == "تحديث" and m.from_user.id == EMPEROR_ID)
 def update_system(message):
-    if message.from_user.id != EMPEROR_ID:
-        return
     load_commands()
-    report = ["📊 تقرير الأنظمة الإمبراطورية:\n"]
+    report = ["📊 تقرير جرد الأنظمة:\n"]
     for file, status in SYSTEM_STATUS.items():
-        report.append(f"{status} — {file}")
-    bot.send_message(message.chat.id, "\n".join(report))
+        report.append(f"{file} | {status}")
+    bot.reply_to(message, "\n".join(report))
 
-# تحميل أولي
-load_commands()
-
-print("🤖 البوت يعمل وينتظر الأوامر...")
-bot.infinity_polling()
+# مراسم الإقلاع
+if __name__ == "__main__":
+    load_commands()
+    print("🔱 الإمبراطورية مستعدة لتلقي الأوامر...")
+    try:
+        bot.send_message(EMPEROR_ID, "⚠️ تم إعادة تفعيل كافة الأنظمة بنجاح.")
+        bot.infinity_polling(timeout=20)
+    except Exception as e:
+        print(f"❌ فشل في الاتصال السحابي: {e}")

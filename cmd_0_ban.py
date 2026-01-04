@@ -1,31 +1,62 @@
 import db_manager
 from telebot import types
 
+# الهوية الإمبراطورية العظمى
 EMPEROR_ID = 5860391324
 
 def register_handlers(bot):
 
-    # 🛑 القاعدة الإمبراطورية: التحقق من الحظر قبل أي رد
-    def check_ban(m):
-        user = db_manager.get_user(m.from_user.id)
-        if user and user.get("banned"):
-            return True
-        return False
+    # 🛑 حارس البوابة الإمبراطوري (المنع الشامل)
+    # هذا الهاندلر يمنع أي شخص محظور من تحريك ساكن في البوت
+    @bot.message_handler(func=lambda m: db_manager.get_user(m.from_user.id).get("banned") == True)
+    def gatekeeper(m):
+        # صمت ملكي.. لا رد ولا استجابة للمنبوذين
+        return
 
-    # 💀 أمر الحظر
-    @bot.message_handler(func=lambda m: m.text == "حظر" and m.from_user.id == EMPEROR_ID)
-    def ban_process(m):
-        if m.reply_to_message:
-            target_id = m.reply_to_message.from_user.id
+    # 💀 مرسوم النفي (أمر الحظر)
+    @bot.message_handler(func=lambda m: m.text == "حظر")
+    def ban_command(m):
+        # التحقق من أن القائم بالأمر هو الإمبراطور
+        if m.from_user.id != EMPEROR_ID:
+            bot.reply_to(m, "⚠️ **وَيْحَكَ!** أتظن أنك تملك مفاتيح السجن؟ اِلزم مكانك أيها العبد!")
+            return
+
+        if not m.reply_to_message:
+            return bot.reply_to(m, "👑 **يا صاحب الجلالة..** أشر بيمينك (بالرد) على رأس الفتنة لنفيه من رحمتنا.")
+
+        target_id = m.reply_to_message.from_user.id
+        target_name = m.reply_to_message.from_user.first_name
+
+        try:
+            # تسجيل النفي في الخزنة الإمبراطورية
             db_manager.update_user(target_id, {"banned": True})
-            bot.reply_to(m, "💀 **مـرسـوم الـنـفـي**\n\nلقد سقطت عليه لعنة الإمبراطور، أُغلق البوت في وجهه!")
-        else:
-            bot.reply_to(m, "👑 يا مولاي، رد على رسالته لنفيه.")
+            
+            # محاولة طرده من المجموعة فعلياً
+            bot.ban_chat_member(m.chat.id, target_id)
+            
+            bot.reply_to(m, f"💀 **مـرسـوم الـنـفـي الأبـدي**\n\nلقد صدر الأمر العالي! العبد {target_name} أُخرج من ديارنا مطروداً مدحوراً، وأُغلقت في وجهه أبواب الإمبراطورية.")
+        except Exception as e:
+            bot.reply_to(m, f"⚠️ **يا مولاي..** تم تسجيل الحظر في البوت، لكن تعذر طرده من المجموعة (ربما لديه حصانة أو نقص في صلاحياتي).")
 
-    # ✨ أمر العفو
-    @bot.message_handler(func=lambda m: m.text == "الغاء الحظر" and m.from_user.id == EMPEROR_ID)
-    def unban_process(m):
-        if m.reply_to_message:
-            target_id = m.reply_to_message.from_user.id
+    # ✨ مرسوم العفو (أمر إلغاء الحظر)
+    @bot.message_handler(func=lambda m: m.text == "الغاء الحظر")
+    def unban_command(m):
+        if m.from_user.id != EMPEROR_ID:
+            return bot.reply_to(m, "⚠️ **توقف!** إن باب العفو لا يفتحه إلا الإمبراطور العظيم.")
+
+        if not m.reply_to_message:
+            return bot.reply_to(m, "👑 **يا سيدي..** وجه عفوك الكريم بالرد على من نال عقابه ليعود لخدمتك.")
+
+        target_id = m.reply_to_message.from_user.id
+        target_name = m.reply_to_message.from_user.first_name
+
+        try:
+            # إزالة النفي من الخزنة
             db_manager.update_user(target_id, {"banned": False})
-            bot.reply_to(m, "✨ **مـكـرمـة مـلـكـيـة**\n\nرُفع الحظر، فليعد لخدمة العرش.")
+            
+            # السماح له بالعودة للمجموعة
+            bot.unban_chat_member(m.chat.id, target_id)
+            
+            bot.reply_to(m, f"✨ **مـكـرمـة مـلـكـيـة**\n\nلقد شمله عفو الإمبراطور العظيم! أُعيد العبد {target_name} إلى كنف الدولة، فليشكر ربه على هذه النجاة.")
+        except Exception as e:
+            bot.reply_to(m, f"⚠️ **عذراً يا مولاي..** واجهنا عائقاً في إصدار العفو: {e}")

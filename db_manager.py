@@ -80,3 +80,17 @@ def get_custom_command(name):
     commands_col = db["custom_commands"]
     command = commands_col.find_one({"_id": name})
     return command["reply"] if command else None
+
+def update_user_experience(user_id, xp_amount):
+    """تحديث خبرة المستخدم في السحاب دون التسبب في انهيار النظام"""
+    try:
+        uid = str(user_id)
+        # التأكد من أن المجموعة (Collection) موجودة ومتاحة
+        users_col = db["users"] 
+        users_col.update_one(
+            {"_id": uid}, 
+            {"$inc": {"xp": xp_amount}}, 
+            upsert=True
+        )
+    except Exception as e:
+        print(f"⚠️ تنبيه إمبراطوري: فشل تحديث الخبرة، السبب: {e}")

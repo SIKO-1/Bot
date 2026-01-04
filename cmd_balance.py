@@ -1,6 +1,6 @@
 from db_manager import get_user_gold
 
-COMMANDS = ["فلوسي", "فلوس", "رصيدي", "رصد"]
+COMMANDS = ["فلوسي", "فلوس", "رصيدي", "رصيدي"]
 
 def handle(bot, message):
     if message.text not in COMMANDS:

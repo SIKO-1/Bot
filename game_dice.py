@@ -1,25 +1,22 @@
 import time
 from db_manager import get_user_gold, update_user_gold
 
-COMMAND = "/dice"
+COMMAND = "نرد"
 
 def handle(bot, message):
-    if message.text != COMMAND and message.text != "نرد":
+    if message.text != COMMAND:
         return
 
     uid = message.from_user.id
     user_gold = get_user_gold(uid)
 
-    # رسالة البداية
     start_msg = bot.reply_to(message, "🎲 جاري رمي نرد الحظ الإمبراطوري... استعد!")
 
-    # إرسال النرد
     dice_msg = bot.send_dice(message.chat.id)
-    value = dice_msg.dice.value 
+    value = dice_msg.dice.value
 
     time.sleep(3.5)
 
-    # الجوائز والخسائر
     if value >= 5:
         prize = 200
         update_user_gold(uid, prize)
@@ -56,7 +53,6 @@ def handle(bot, message):
 
     bot.reply_to(dice_msg, res_text)
 
-    # حذف رسالة البداية
     try:
         bot.delete_message(message.chat.id, start_msg.message_id)
     except:

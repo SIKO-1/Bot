@@ -1,10 +1,16 @@
 import telebot
+import db_manager
 
 def register_handlers(bot):
 
     # الهاندلر يستجيب لكل الكلمات التي طلبتها
     @bot.message_handler(func=lambda m: m.text in ['العاب', 'الألعاب', 'الالعاب', 'لعبات', 'لعبة'])
     def send_grand_menu(m):
+        # 🛑 الحارس الإمبراطوري: التحقق من سجل المنفيين
+        user_info = db_manager.get_user(m.from_user.id)
+        if user_info and user_info.get("banned"):
+            return # صمت ملكي.. لا استجابة للمنبوذين
+
         menu_text = (
             "⌔︙قائمة ألعاب الإمبراطورية\n"
             "—————————————\n"
@@ -28,7 +34,6 @@ def register_handlers(bot):
         )
         
         try:
-            bot.reply_to(m, menu_text) # بدون Markdown عشان الزخرفة ما تخرب
+            bot.reply_to(m, menu_text) 
         except Exception as e:
             bot.send_message(m.chat.id, menu_text)
-

@@ -3,6 +3,7 @@ import os
 import importlib
 import sys
 import time
+import db_manager # تم استدعاء مدير الخزينة لضمان التسجيل السحابي
 from dotenv import load_dotenv
 
 # --- إعدادات الرقابة الملكية ---
@@ -21,7 +22,7 @@ def load_commands():
     """البحث التلقائي عن ملفات الأوامر والألعاب"""
     count = 0
     for file in os.listdir("."):
-        if (file.startswith("cmd_") or file.startswith("game_")) and file.endswith(".py"):
+        if (file.startswith("cmd_") or file.startswith("game_") or file.startswith("event_")) and file.endswith(".py"):
             module_name = file[:-3]
             try:
                 if module_name in sys.modules:
@@ -37,6 +38,19 @@ def load_commands():
             except Exception as e:
                 print(f"❌ خطأ في تحميل {file}: {e}")
     return count
+
+# --- 🛰️ بروتوكول رصد المجموعات ---
+@bot.message_handler(content_types=['new_chat_members'])
+def auto_register_new_group(m):
+    """تسجيل المجموعة فور دخول البوت إليها"""
+    if bot.get_me().id in [user.id for user in m.new_chat_members]:
+        db_manager.add_group(m.chat.id)
+        bot.send_message(m.chat.id, "دخلت الإمبراطورية هذه الديار.. أعدوا العدة.")
+
+@bot.message_handler(func=lambda m: m.chat.type in ['group', 'supergroup'])
+def monitor_groups(m):
+    """تأكيد تسجيل المجموعة بمجرد حدوث أي تفاعل"""
+    db_manager.add_group(m.chat.id)
 
 # تشغيل جميع الأنظمة عند الإقلاع
 loaded_count = load_commands()

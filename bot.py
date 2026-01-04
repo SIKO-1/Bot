@@ -1,8 +1,6 @@
 import os
 import telebot
 import importlib.util
-import threading
-import time
 
 # ======================
 # إعدادات أساسية
@@ -10,7 +8,7 @@ import time
 
 TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
-    raise ValueError("BOT_TOKEN غير موجود")
+    raise RuntimeError("❌ BOT_TOKEN غير موجود في Environment Variables")
 
 bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
 
@@ -20,13 +18,11 @@ cmd_modules = {}
 game_modules = {}
 
 # ======================
-# تحميل الملفات تلقائياً حسب الاسم
+# تحميل الملفات (مرة واحدة)
 # ======================
 
 def load_modules():
     global cmd_modules, game_modules
-    new_cmd = {}
-    new_game = {}
 
     if not os.path.exists(COMMANDS_FOLDER):
         os.makedirs(COMMANDS_FOLDER)
@@ -36,11 +32,11 @@ def load_modules():
             continue
 
         if filename.startswith("cmd_"):
-            category = "cmd"
+            target = cmd_modules
         elif filename.startswith("game_"):
-            category = "game"
+            target = game_modules
         else:
-            continue  # تجاهل أي ملف ثاني
+            continue
 
         module_name = filename[:-3]
         file_path = os.path.join(COMMANDS_FOLDER, filename)
@@ -51,30 +47,13 @@ def load_modules():
             spec.loader.exec_module(module)
 
             if hasattr(module, "handle"):
-                if category == "cmd":
-                    new_cmd[module_name] = module
-                else:
-                    new_game[module_name] = module
+                target[module_name] = module
 
         except Exception as e:
-            print(f"خطأ في تحميل {filename}: {e}")
-
-    cmd_modules = new_cmd
-    game_modules = new_game
+            print(f"⚠️ خطأ في تحميل {filename}: {e}")
 
     print("CMD:", list(cmd_modules.keys()))
     print("GAME:", list(game_modules.keys()))
-
-# ======================
-# تحديث تلقائي (Hot Reload)
-# ======================
-
-def auto_reload():
-    while True:
-        load_modules()
-        time.sleep(10)
-
-threading.Thread(target=auto_reload, daemon=True).start()
 
 # ======================
 # أوامر أساسية
@@ -84,10 +63,10 @@ threading.Thread(target=auto_reload, daemon=True).start()
 def start(message):
     bot.reply_to(
         message,
-        "🤖 <b>بوتك شغال</b>\n"
-        "• cmd_ للأوامر\n"
-        "• game_ للألعاب\n"
-        "كلشي يتحدث تلقائياً."
+        "🤖 <b>البوت شغال</b>\n"
+        "• ملفات cmd_ = أوامر\n"
+        "• ملفات game_ = ألعاب\n"
+        "أعد التشغيل بعد إضافة ملفات جديدة."
     )
 
 @bot.message_handler(commands=["help"])
@@ -116,12 +95,12 @@ def dispatcher(message):
         try:
             module.handle(bot, message)
         except Exception as e:
-            print(f"خطأ داخل {module}: {e}")
+            print(f"❌ خطأ داخل {module}: {e}")
 
 # ======================
 # تشغيل
 # ======================
 
 load_modules()
-print("Bot is running...")
+print("🚀 Bot is running...")
 bot.infinity_polling(skip_pending=True)

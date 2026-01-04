@@ -26,6 +26,11 @@ def register_handlers(bot):
     # 1. قسم ديوان الأوامر (اوامر، الاوامر، قائمة)
     @bot.message_handler(func=lambda message: message.text in ["اوامر", "الأوامر", "الاوامر", "قائمة"])
     def luxury_menu(message):
+        # 🔥 الحارس الإمبراطوري: يمنع المحظور من رؤية الأوامر
+        user_info = get_user(message.from_user.id)
+        if user_info and user_info.get("banned"):
+            return 
+
         name = message.from_user.first_name
         user_id = message.from_user.id
         
@@ -63,10 +68,14 @@ def register_handlers(bot):
     # 2. قسم الهوية الإمبراطورية (ايدي، ا)
     @bot.message_handler(func=lambda message: message.text in ["ايدي", "ا", "ID", "id"])
     def luxury_id(message):
+        # 🔥 الحارس الإمبراطوري: يمنع المحظور من رؤية هويته
+        user_info = get_user(message.from_user.id)
+        if user_info and user_info.get("banned"):
+            return
+
         try:
             uid = message.from_user.id
             name = message.from_user.first_name
-            # تنظيف اليوزرنيم من الرموز لتجنب تعليق Markdown
             username = message.from_user.username if message.from_user.username else "لا يوجد"
             
             user_data = get_user(uid)
@@ -76,11 +85,9 @@ def register_handlers(bot):
             balance = user_data.get("balance", 0)
             rank = user_data.get("rank", "مواطن")
             
-            # جلب البايو وتعطيل الرموز الحساسة
             try:
                 full_user = bot.get_chat(uid)
                 bio = full_user.bio if full_user.bio else "خالي من الكلمات"
-                # تنظيف البايو من رموز التنسيق لحل مشكلة الـ Error 400
                 bio = bio.replace("_", "\\_").replace("*", "\\*").replace("`", "\\`")
             except:
                 bio = "المعلومات محجوبة"

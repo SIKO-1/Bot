@@ -48,7 +48,7 @@ try:
 except Exception as e:
     print(f"⚠️ تعذر إرسال برقية التشغيل: {e}")
 
-# --- 🔄 أمر "رس" لتحديث الأنظمة ---
+# --- 🔄 أمر "رست" لتحديث الأنظمة ---
 @bot.message_handler(func=lambda m: m.text == "رست")
 def restart_bot(message):
     if message.from_user.id == ADMIN_ID:

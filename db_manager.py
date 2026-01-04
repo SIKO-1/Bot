@@ -4,67 +4,68 @@ import os
 DB_FILE = "database.json"
 
 def load_db():
-    """تحميل البيانات من الملف فوراً لضمان أحدث نسخة"""
+    """تحميل البيانات من الملف فوراً"""
     if not os.path.exists(DB_FILE):
-        # إذا الملف مو موجود ننشئه فاضي
         with open(DB_FILE, "w", encoding="utf-8") as f:
             json.dump({}, f)
         return {}
-    
     with open(DB_FILE, "r", encoding="utf-8") as f:
         try:
-            data = json.load(f)
-            return data
+            return json.load(f)
         except:
             return {}
 
 def save_db(data):
-    """حفظ البيانات في الملف وإغلاقه فوراً لضمان عدم الضياع"""
+    """حفظ البيانات في الملف وإغلاقه فوراً"""
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 def get_user(user_id):
-    """جلب بيانات المواطن، وإذا مو موجود نسجله فوراً"""
+    """جلب بيانات المستخدم بالكامل"""
     db = load_db()
     uid = str(user_id)
     if uid not in db:
         db[uid] = {"gold": 0, "messages": 0, "rank": "مواطن", "banned": False}
-        save_db(db) # نحفظه فوراً في الملف
+        save_db(db)
     return db[uid]
 
 def update_user(user_id, data):
-    """تحديث أي معلومة (ذهب، رتبة، حظر) وحفظها للأبد"""
+    """تحديث أي معلومة وحفظها"""
     db = load_db()
     uid = str(user_id)
     if uid not in db:
         db[uid] = {"gold": 0, "messages": 0, "rank": "مواطن", "banned": False}
-    
     db[uid].update(data)
-    save_db(db) # الحفظ الفوري
+    save_db(db)
+
+# --- الدوال المطلوبة لأوامر الذهب والفلوس ---
+
+def get_user_gold(user_id):
+    """هذه هي الدالة التي كانت ناقصة وتسببت بالخطأ"""
+    user = get_user(user_id)
+    return user.get("gold", 0)
 
 def update_user_gold(user_id, amount):
-    """إضافة أو خصم الذهب مع ضمان الحفظ"""
+    """تعديل الذهب مع ضمان الحفظ الأبدي"""
     db = load_db()
     uid = str(user_id)
     if uid not in db:
         db[uid] = {"gold": 0, "messages": 0}
     
-    # تأكدنا أننا نستخدم مفتاح "gold" الموحد
-    current_gold = db[uid].get("gold", 0)
-    db[uid]["gold"] = current_gold + amount
+    db[uid]["gold"] = db[uid].get("gold", 0) + amount
     save_db(db)
 
 def increment_messages(user_id):
-    """تحديث عداد الرسائل في كل مرة يرسل فيها الشخص رسالة"""
+    """زيادة عداد الرسائل في كل حركة"""
     db = load_db()
     uid = str(user_id)
     if uid not in db:
         db[uid] = {"gold": 0, "messages": 0}
-    
     db[uid]["messages"] = db[uid].get("messages", 0) + 1
     save_db(db)
 
-# --- دوال نظام الروح (بيانات حقيقية من الملف) ---
+# --- دوال نظام الروح (إحصائيات حقيقية) ---
+
 def get_total_users_count():
     return len(load_db())
 

@@ -2,8 +2,6 @@ import os
 import telebot
 import importlib.util
 
-COMMANDS_FOLDER = "commands"
-
 TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
     raise RuntimeError("❌ BOT_TOKEN غير موجود")
@@ -16,15 +14,13 @@ game_modules = {}
 def load_modules():
     global cmd_modules, game_modules
 
-    if not os.path.exists(COMMANDS_FOLDER):
-        os.makedirs(COMMANDS_FOLDER)
-
-    for filename in os.listdir(COMMANDS_FOLDER):
-        if not filename.endswith(".py") or filename.startswith("__"):
+    # هنا نبحث في نفس مسار bot.py
+    for filename in os.listdir(os.path.dirname(__file__)):
+        if not filename.endswith(".py") or filename.startswith("__") or filename == "bot.py":
             continue
 
         module_name = filename[:-3]
-        file_path = os.path.join(COMMANDS_FOLDER, filename)
+        file_path = os.path.join(os.path.dirname(__file__), filename)
 
         try:
             spec = importlib.util.spec_from_file_location(module_name, file_path)
@@ -50,7 +46,7 @@ def start(message):
         "🤖 البوت شغال\n"
         "• أوامر: cmd_\n"
         "• ألعاب: game_\n"
-        "أضف ملفات جديدة وأعد التشغيل إذا أردت.")
+        "ضع ملفات جديدة وأعد تشغيل البوت إذا أردت.")
 
 # الموزع العام
 @bot.message_handler(func=lambda m: True)

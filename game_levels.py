@@ -19,10 +19,14 @@ def register_handlers(bot):
         )
         bot.reply_to(m, response)
 
+    # التعديل الجوهري هنا:
     @bot.message_handler(func=lambda m: True)
     def track_activity(m):
-        # منع البوت من منح نقاط لنفسه أو للأوامر
-        if m.text and not m.text.startswith("/") and len(m.text) > 3:
-            # منح من 5 إلى 15 نقطة خبرة بشكل عشوائي لكل رسالة
-            added_xp = random.randint(5, 15)
+        # منح النقاط في الخلفية
+        if m.text and not m.text.startswith("/") and len(m.text) > 2:
+            added_xp = random.randint(2, 8)
             db_manager.update_user_experience(m.from_user.id, added_xp)
+        
+        # أمر ملكي: اسمح للرسالة بالاستمرار للبحث عن أوامر أخرى
+        # هذه الدالة تجعل البوت لا يتوقف هنا بل يكمل البحث في بقية الملفات
+        return False 

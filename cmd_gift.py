@@ -1,4 +1,4 @@
-from db_manager import take_gift, get_user_gold
+from db_manager import take_gift
 
 COMMAND = "هدية"
 

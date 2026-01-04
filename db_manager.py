@@ -1,12 +1,14 @@
 import time
 from collections import defaultdict
 
-# قاعدة بيانات داخلية (تقدر تحوّل لاحقًا SQLite أو JSON)
+# ======================
+# قاعدة بيانات داخلية
+# ======================
 users_gold = defaultdict(int)
 users_last_gift = defaultdict(float)
 
 # ======================
-# الرصيد الأساسي
+# الرصيد
 # ======================
 def get_user_gold(uid):
     return users_gold[uid]

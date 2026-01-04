@@ -2,64 +2,59 @@ import telebot
 import os
 import importlib
 import sys
-import time
 from dotenv import load_dotenv
 
-# --- إعدادات الرقابة الملكية ---
+# إعدادات الرقابة
 load_dotenv()
 TOKEN = os.getenv('BOT_TOKEN')
 ADMIN_ID = 5860391324  
 bot = telebot.TeleBot(TOKEN)
 
-# متغيرات "الروح" الحقيقية
-START_TIME = time.time()
-INTERNAL_ERRORS = 0
-
-print("🚀 الإمبراطورية تستعد للنهوض...")
-
 def load_commands():
-    """البحث التلقائي عن ملفات الأوامر والألعاب"""
+    """تحميل الأوامر مع طباعة الأخطاء بوضوح"""
     count = 0
-    for file in os.listdir("."):
-        if (file.startswith("cmd_") or file.startswith("game_")) and file.endswith(".py"):
-            module_name = file[:-3]
-            try:
-                if module_name in sys.modules:
-                    importlib.reload(sys.modules[module_name])
-                else:
-                    importlib.import_module(module_name)
-                
-                module = sys.modules[module_name]
-                if hasattr(module, 'register_handlers'):
-                    module.register_handlers(bot)
-                    print(f"✅ تم تشغيل: {file}")
-                    count += 1
-            except Exception as e:
-                print(f"❌ خطأ في تحميل {file}: {e}")
+    # الحصول على قائمة الملفات التي تبدأ بـ cmd_ أو game_
+    files = [f for f in os.listdir(".") if (f.startswith("cmd_") or f.startswith("game_")) and f.endswith(".py")]
+    
+    print(f"🔍 جاري فحص {len(files)} نظاماً...")
+    
+    for file in files:
+        module_name = file[:-3]
+        try:
+            # مسح الموديل من الذاكرة لإعادة تحميله نظيفاً
+            if module_name in sys.modules:
+                del sys.modules[module_name]
+            
+            module = importlib.import_module(module_name)
+            if hasattr(module, 'register_handlers'):
+                module.register_handlers(bot)
+                print(f"✅ تم تفعيل: {file}")
+                count += 1
+        except Exception as e:
+            print(f"⚠️ فشل تحميل {file} بسبب خطأ في الكود الداخلي: {e}")
     return count
 
-# تشغيل جميع الأنظمة عند الإقلاع
-loaded_count = load_commands()
-print(f"📊 إجمالي الأنظمة النشطة الآن: {loaded_count}")
-
-# --- 🔔 برقية الانبعاث ---
+# تشغيل الأنظمة
+print("🚀 محاولة إحياء الإمبراطورية...")
 try:
-    bot.send_message(ADMIN_ID, "مراسم الانبعاث: استعادت روح الإمبراطورية وعيها الكامل الآن.")
-except: pass
-
-# --- 🔄 أمر "تحديث" ---
-@bot.message_handler(func=lambda m: m.text == "تحديث")
-def restart_bot(message):
-    if message.from_user.id == ADMIN_ID:
-        bot.reply_to(message, "⚙️ جاري إعادة مسح ملفات الأوامر...")
-        count = load_commands()
-        bot.send_message(message.chat.id, f"✅ تم التحديث! الأنظمة: {count}")
+    active_systems = load_commands()
+    print(f"📊 الأنظمة النشطة: {active_systems}")
+except Exception as e:
+    print(f"❌ خطأ كارثي أثناء التحميل: {e}")
 
 @bot.message_handler(commands=['start'])
-def send_welcome(message):
-    bot.reply_to(message, "🔱 كل أنظمة الإمبراطورية تعمل الآن تحت أمرك!")
+def start_test(m):
+    bot.reply_to(m, "🔱 وصلتني رسالتك يا مولاي، أنا أسمعك الآن.")
 
-# --- 🛡️ تشغيل البوت ---
+@bot.message_handler(func=lambda m: m.text == "تحديث" and m.from_user.id == ADMIN_ID)
+def refresh_test(m):
+    c = load_commands()
+    bot.reply_to(m, f"⚙️ تم إعادة تهيئة الأنظمة. العدد: {c}")
+
 if __name__ == "__main__":
-    print("✅ البوت متصل الآن..")
-    bot.infinity_polling()
+    print("📡 البوت يحاول الاتصال بالخوادم الآن...")
+    try:
+        bot.send_message(ADMIN_ID, "مراسم الانبعاث: استيقظت روح الإمبراطورية.")
+        bot.infinity_polling(timeout=10, long_polling_timeout=5)
+    except Exception as e:
+        print(f"❌ فشل الاتصال النهائي: {e}")

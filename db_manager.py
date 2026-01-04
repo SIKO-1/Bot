@@ -80,18 +80,3 @@ def get_custom_command(name):
     commands_col = db["custom_commands"]
     command = commands_col.find_one({"_id": name})
     return command["reply"] if command else None
-
-def update_user_experience(user_id, xp_amount):
-    """زيادة نقاط الخبرة في السحاب"""
-    uid = str(user_id)
-    # كل 1000 نقطة خبرة تعادل مستوى واحد
-    users_collection.update_one({"_id": uid}, {"$inc": {"xp": xp_amount}}, upsert=True)
-
-def get_user_level(user_id):
-    """حساب المستوى بناءً على النقاط"""
-    user = get_user(user_id)
-    xp = user.get("xp", 0)
-    # المعادلة: المستوى = (الجذر التربيعي للخبرة / 10)
-    # أو ببساطة: كل 500 نقطة هي مستوى
-    level = int(xp / 500)
-    return level, xp

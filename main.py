@@ -4,6 +4,7 @@ import importlib
 import sys
 import time
 from dotenv import load_dotenv
+import db_manager # استدعاء الخزينة لضمان الحفظ
 
 # --- إعدادات الرقابة الملكية ---
 load_dotenv()
@@ -41,6 +42,17 @@ def load_commands():
 # تشغيل جميع الأنظمة عند الإقلاع
 loaded_count = load_commands()
 print(f"📊 إجمالي الأنظمة النشطة الآن: {loaded_count}")
+
+# --- 🛡️ نظام الحفظ التلقائي (يمنع تصفير الذهب) ---
+@bot.message_handler(func=lambda m: True)
+def auto_save_handler(message):
+    """حفظ نشاط المستخدم فوراً قبل معالجة أي أمر"""
+    try:
+        db_manager.increment_messages(message.from_user.id)
+    except:
+        pass
+    # السماح للأوامر الأخرى (مثل هدية وفلوسي) بالعمل
+    bot.process_new_messages([message])
 
 # --- 🔔 برقية الانبعاث (تنبيه التشغيل) ---
 try:

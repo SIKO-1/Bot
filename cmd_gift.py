@@ -12,4 +12,4 @@ def handle(bot, message):
     if gold is not None:
         bot.reply_to(message, f"🎁 لقد حصلت على هديتك اليومية: +100 ذهب\n💰 رصيدك الحالي: {gold}")
     else:
-        bot.reply_to(message, "🌚 لتصير طماع، تقدر أخذ الهدية مرة كل 24 ساعة بس ياطماع.")
+        bot.reply_to(message, "⏳ يمكنك أخذ الهدية مرة كل 24 ساعة فقط.")

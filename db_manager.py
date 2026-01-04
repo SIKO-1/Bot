@@ -1,32 +1,33 @@
-import sqlite3
+import time
+from collections import defaultdict
 
-conn = sqlite3.connect("bot.db", check_same_thread=False)
-cursor = conn.cursor()
+# قاعدة بيانات داخلية (تقدر تحوّل لاحقًا SQLite أو JSON)
+users_gold = defaultdict(int)
+users_last_gift = defaultdict(float)
 
-# إنشاء جدول المستخدمين
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS users (
-    user_id INTEGER PRIMARY KEY,
-    points INTEGER DEFAULT 0,
-    state TEXT DEFAULT ''
-)
-""")
-conn.commit()
+# ======================
+# الرصيد الأساسي
+# ======================
+def get_user_gold(uid):
+    return users_gold[uid]
 
-def get_user(user_id):
-    cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
-    return cursor.fetchone()
+def update_user_gold(uid, amount):
+    users_gold[uid] += amount
+    if users_gold[uid] < 0:
+        users_gold[uid] = 0
+    return users_gold[uid]
 
-def create_user(user_id):
-    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
-    conn.commit()
+# ======================
+# الهدايا اليومية
+# ======================
+def can_take_gift(uid):
+    now = time.time()
+    last = users_last_gift[uid]
+    return now - last >= 86400  # 24 ساعة
 
-def add_points(user_id, amount):
-    create_user(user_id)
-    cursor.execute("UPDATE users SET points = points + ? WHERE user_id = ?", (amount, user_id))
-    conn.commit()
-
-def get_points(user_id):
-    create_user(user_id)
-    cursor.execute("SELECT points FROM users WHERE user_id = ?", (user_id,))
-    return cursor.fetchone()[0]
+def take_gift(uid, amount=100):
+    if can_take_gift(uid):
+        users_last_gift[uid] = time.time()
+        return update_user_gold(uid, amount)
+    else:
+        return None

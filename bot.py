@@ -3,9 +3,8 @@ import telebot
 import importlib.util
 import traceback
 
-# ======= إعداد التوكن =======
 TOKEN = os.getenv("BOT_TOKEN")
-DEV_ID = 5860391324  # ايدي المطور
+DEV_ID = 5860391324
 if not TOKEN:
     raise RuntimeError("❌ BOT_TOKEN غير موجود")
 
@@ -13,9 +12,8 @@ bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
 
 cmd_modules = {}
 game_modules = {}
-module_errors = {}  # لتسجيل أي أخطاء في تحميل الملفات
+module_errors = {}
 
-# ======= تحميل الملفات تلقائيًا =======
 def load_modules():
     global cmd_modules, game_modules, module_errors
     cmd_modules.clear()
@@ -42,8 +40,6 @@ def load_modules():
 
         except Exception as e:
             module_errors[filename] = str(e)
-            print(f"⚠️ خطأ في تحميل {filename}: {e}")
-            # إرسال تلقائي للمطور
             try:
                 bot.send_message(DEV_ID, f"⚠️ خطأ في تحميل {filename}:\n{e}")
             except:
@@ -52,7 +48,6 @@ def load_modules():
     print("CMD:", list(cmd_modules.keys()))
     print("GAME:", list(game_modules.keys()))
 
-# ======= أوامر أساسية =======
 @bot.message_handler(commands=["start"])
 def start(message):
     bot.reply_to(message,
@@ -62,7 +57,6 @@ def start(message):
         "• اكتب 'تحديث' لمراجعة الملفات وتشخيص الأخطاء"
     )
 
-# ======= أمر تحديث =======
 @bot.message_handler(func=lambda m: m.text.strip().lower() == "تحديث")
 def update_files(message):
     if message.from_user.id != DEV_ID:
@@ -84,7 +78,6 @@ def update_files(message):
     bot.send_message(DEV_ID, report)
     bot.reply_to(message, "🔄 تم تحديث الملفات. تقرير أرسل لك كمطور!")
 
-# ======= موزع الرسائل =======
 @bot.message_handler(func=lambda m: True)
 def dispatcher(message):
     for module in list(cmd_modules.values()) + list(game_modules.values()):
@@ -93,13 +86,11 @@ def dispatcher(message):
         except Exception as e:
             err_msg = f"❌ خطأ في {module.__name__}:\n{e}\n{traceback.format_exc()}"
             print(err_msg)
-            # إرسال تلقائي للمطور
             try:
                 bot.send_message(DEV_ID, err_msg)
             except:
                 pass
 
-# ======= تشغيل البوت =======
 load_modules()
 print("🚀 Bot is running...")
 bot.infinity_polling(skip_pending=True)

@@ -62,3 +62,21 @@ def get_total_messages():
     pipeline = [{"$group": {"_id": None, "total": {"$sum": "$messages"}}}]
     result = list(users_collection.aggregate(pipeline))
     return result[0]["total"] if result else 0
+
+# --- قسم الأوامر المخصصة (السحابي) ---
+
+def save_custom_command(name, reply):
+    """حفظ أمر جديد في الديوان السحابي"""
+    # نستخدم مجموعة (Collection) خاصة للأوامر المخصصة
+    commands_col = db["custom_commands"]
+    commands_col.update_one(
+        {"_id": name}, 
+        {"$set": {"reply": reply}}, 
+        upsert=True
+    )
+
+def get_custom_command(name):
+    """جلب الرد المناسب من سجلات الإمبراطورية"""
+    commands_col = db["custom_commands"]
+    command = commands_col.find_one({"_id": name})
+    return command["reply"] if command else None

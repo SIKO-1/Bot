@@ -1,78 +1,64 @@
-import json
-import os
+import pymongo
 
-DB_FILE = "database.json"
+# هذا هو الرابط السحابي الخاص بك
+# قم بوضع كلمة المرور مكان كلمة PASSWORD_HERE
+MONGO_CONNECTION_STRING = "mongodb+srv://wpee923_db_user:08520852KR@cluster0.nzjd5gc.mongodb.net/?appName=Cluster0"
 
-def load_db():
-    """تحميل البيانات من الملف فوراً"""
-    if not os.path.exists(DB_FILE):
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            json.dump({}, f)
-        return {}
-    with open(DB_FILE, "r", encoding="utf-8") as f:
-        try:
-            return json.load(f)
-        except:
-            return {}
-
-def save_db(data):
-    """حفظ البيانات في الملف وإغلاقه فوراً"""
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+try:
+    client = pymongo.MongoClient(MONGO_CONNECTION_STRING)
+    db = client["EmpireDB"]
+    users_collection = db["users"]
+except Exception as e:
+    print(f"فشل الاتصال بالحصن السحابي: {e}")
 
 def get_user(user_id):
-    """جلب بيانات المستخدم بالكامل"""
-    db = load_db()
+    """جلب بيانات العضو من السحاب مباشرة"""
     uid = str(user_id)
-    if uid not in db:
-        db[uid] = {"gold": 0, "messages": 0, "rank": "مواطن", "banned": False}
-        save_db(db)
-    return db[uid]
+    user = users_collection.find_one({"_id": uid})
+    if not user:
+        user = {
+            "_id": uid, 
+            "gold": 0, 
+            "messages": 0, 
+            "rank": "مواطن", 
+            "banned": False,
+            "last_gift": None
+        }
+        users_collection.insert_one(user)
+    return user
 
 def update_user(user_id, data):
-    """تحديث أي معلومة وحفظها"""
-    db = load_db()
+    """تحديث بيانات العضو في السحاب"""
     uid = str(user_id)
-    if uid not in db:
-        db[uid] = {"gold": 0, "messages": 0, "rank": "مواطن", "banned": False}
-    db[uid].update(data)
-    save_db(db)
-
-# --- الدوال المطلوبة لأوامر الذهب والفلوس ---
+    users_collection.update_one({"_id": uid}, {"$set": data}, upsert=True)
 
 def get_user_gold(user_id):
-    """هذه هي الدالة التي كانت ناقصة وتسببت بالخطأ"""
+    """الاستعلام عن رصيد الذهب"""
     user = get_user(user_id)
     return user.get("gold", 0)
 
 def update_user_gold(user_id, amount):
-    """تعديل الذهب مع ضمان الحفظ الأبدي"""
-    db = load_db()
+    """تعديل الذهب عبر تقنية الإضافة المباشرة لمنع التصفير"""
     uid = str(user_id)
-    if uid not in db:
-        db[uid] = {"gold": 0, "messages": 0}
-    
-    db[uid]["gold"] = db[uid].get("gold", 0) + amount
-    save_db(db)
+    users_collection.update_one({"_id": uid}, {"$inc": {"gold": amount}}, upsert=True)
 
 def increment_messages(user_id):
-    """زيادة عداد الرسائل في كل حركة"""
-    db = load_db()
+    """زيادة عداد المراسلات"""
     uid = str(user_id)
-    if uid not in db:
-        db[uid] = {"gold": 0, "messages": 0}
-    db[uid]["messages"] = db[uid].get("messages", 0) + 1
-    save_db(db)
+    users_collection.update_one({"_id": uid}, {"$inc": {"messages": 1}}, upsert=True)
 
-# --- دوال نظام الروح (إحصائيات حقيقية) ---
+# --- إحصائيات الإمبراطورية ---
 
 def get_total_users_count():
-    return len(load_db())
+    """تعداد الرعية في المملكة"""
+    return users_collection.count_documents({})
 
 def get_banned_users_count():
-    db = load_db()
-    return len([u for u in db.values() if u.get("banned") == True])
+    """تعداد المنفيين من الديار"""
+    return users_collection.count_documents({"banned": True})
 
 def get_total_messages():
-    db = load_db()
-    return sum([u.get("messages", 0) for u in db.values()])
+    """مجموع مراسلات الرعية"""
+    pipeline = [{"$group": {"_id": None, "total": {"$sum": "$messages"}}}]
+    result = list(users_collection.aggregate(pipeline))
+    return result[0]["total"] if result else 0

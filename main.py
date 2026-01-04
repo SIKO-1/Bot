@@ -47,8 +47,8 @@ try:
     bot.send_message(ADMIN_ID, "مراسم الانبعاث: استعادت روح الإمبراطورية وعيها الكامل الآن.")
 except: pass
 
-# --- 🔄 أمر "رست" ---
-@bot.message_handler(func=lambda m: m.text == "رست")
+# --- 🔄 أمر "تحديث" ---
+@bot.message_handler(func=lambda m: m.text == "تحديث")
 def restart_bot(message):
     if message.from_user.id == ADMIN_ID:
         bot.reply_to(message, "⚙️ جاري إعادة مسح ملفات الأوامر...")

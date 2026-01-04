@@ -11,7 +11,7 @@ ITEMS = [
 ]
 
 def handle(bot, message):
-    text = message.text.strip()
+    text = message.text.strip().lower()  # تنظيف النص وحساسية الحروف
     uid = message.from_user.id
 
     if text == "متجر":

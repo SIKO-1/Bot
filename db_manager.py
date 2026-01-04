@@ -1,48 +1,89 @@
-import os
 import time
 from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure
 
-MONGO_URI = os.getenv("MONGO_URI")
-client = MongoClient(MONGO_URI)
-db = client['imperial_bot']
-users_col = db['users']
+# ======================
+# إعداد MongoDB
+# ======================
+MONGO_URI = "mongodb+srv://wpee923_db_user:08520852KR@cluster0.nzjd5gc.mongodb.net/?retryWrites=true&w=majority"
+DB_NAME = "imperial_bot"
 
-def get_user_gold(uid):
-    user = users_col.find_one({"_id": uid})
-    return user.get("gold", 0) if user else 0
+try:
+    client = MongoClient(MONGO_URI)
+    db = client[DB_NAME]
+    users_collection = db["users"]
+    print("✅ MongoDB متصل بنجاح!")
+except ConnectionFailure:
+    print("❌ فشل الاتصال بـ MongoDB")
 
-def update_user_gold(uid, amount):
-    user = users_col.find_one({"_id": uid})
+# ======================
+# دوال الرصيد
+# ======================
+def get_user_gold(uid: int) -> int:
+    user = users_collection.find_one({"uid": uid})
     if user:
-        new_gold = max(0, user.get("gold", 0) + amount)
-        users_col.update_one({"_id": uid}, {"$set": {"gold": new_gold}})
-    else:
-        users_col.insert_one({"_id": uid, "gold": max(0, amount), "items": [], "last_gift": 0})
-        new_gold = max(0, amount)
-    return new_gold
+        return user.get("gold", 0)
+    return 0
 
-def can_take_gift(uid):
-    user = users_col.find_one({"_id": uid})
-    last = user.get("last_gift", 0) if user else 0
+def update_user_gold(uid: int, amount: int) -> int:
+    user = users_collection.find_one({"uid": uid})
+    if user:
+        new_gold = user.get("gold", 0) + amount
+        if new_gold < 0:
+            new_gold = 0
+        users_collection.update_one({"uid": uid}, {"$set": {"gold": new_gold}})
+        return new_gold
+    else:
+        # إذا المستخدم جديد
+        users_collection.insert_one({"uid": uid, "gold": max(0, amount), "inventory": [], "last_gift": 0})
+        return max(0, amount)
+
+# ======================
+# دوال الهدايا اليومية
+# ======================
+def can_take_gift(uid: int) -> bool:
+    user = users_collection.find_one({"uid": uid})
+    if not user:
+        return True  # لو جديد، يقدر ياخذ هدية
+    last = user.get("last_gift", 0)
     return time.time() - last >= 86400
 
-def take_gift(uid, amount=100):
+def take_gift(uid: int, amount: int = 100) -> int | None:
     if can_take_gift(uid):
-        users_col.update_one(
-            {"_id": uid},
-            {"$set": {"last_gift": time.time()}, "$inc": {"gold": amount}},
-            upsert=True
-        )
-        return get_user_gold(uid)
+        new_gold = update_user_gold(uid, amount)
+        users_collection.update_one({"uid": uid}, {"$set": {"last_gift": time.time()}})
+        return new_gold
     return None
 
-def add_item(uid, item_name):
-    users_col.update_one(
-        {"_id": uid},
-        {"$push": {"items": item_name}},
-        upsert=True
-    )
+# ======================
+# دوال المخزون / inventory
+# ======================
+def get_inventory(uid: int) -> list:
+    user = users_collection.find_one({"uid": uid})
+    if user:
+        return user.get("inventory", [])
+    return []
 
-def get_items(uid):
-    user = users_col.find_one({"_id": uid})
-    return user.get("items", []) if user else []
+def add_to_inventory(uid: int, item: str, quantity: int = 1) -> None:
+    user = users_collection.find_one({"uid": uid})
+    if user:
+        inventory = user.get("inventory", [])
+        inventory.extend([item] * quantity)
+        users_collection.update_one({"uid": uid}, {"$set": {"inventory": inventory}})
+    else:
+        users_collection.insert_one({"uid": uid, "gold": 0, "inventory": [item] * quantity, "last_gift": 0})
+
+def remove_from_inventory(uid: int, item: str, quantity: int = 1) -> bool:
+    user = users_collection.find_one({"uid": uid})
+    if not user:
+        return False
+    inventory = user.get("inventory", [])
+    count = 0
+    new_inventory = []
+    for i in inventory:
+        if i == item and count < quantity:
+            count += 1
+            continue
+        new_inventory.append(i)
+    users_collection.update_one({"uid": uid}, {"$set": {"inventory": new_inventory}})
+    return count == quantity

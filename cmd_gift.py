@@ -5,20 +5,41 @@ def register_handlers(bot):
     @bot.message_handler(func=lambda m: m.text == "هدية")
     def gift(m):
         uid = m.from_user.id
+        # جلب البيانات مرة واحدة فقط في البداية
         user = db_manager.get_user(uid)
+        
+        # حارس الحظر
+        if user.get("banned"):
+            return
+
         now = datetime.now()
         
-        # منع التكرار (حل مشكلة الصورة)
+        # نظام التحقق من الوقت
         last = user.get("last_gift")
-        if last and now < datetime.fromisoformat(last) + timedelta(hours=24):
-            return bot.reply_to(m, "Wait! 🌚 ارجع بعدين يا طماع.")
+        if last:
+            try:
+                last_time = datetime.fromisoformat(last)
+                if now < last_time + timedelta(hours=24):
+                    remaining = (last_time + timedelta(hours=24)) - now
+                    hours = remaining.seconds // 3600
+                    return bot.reply_to(m, f"⚠️ ارجع بعد {hours} ساعة يا طماع! 🌚")
+            except:
+                pass # في حال وجود خطأ في تنسيق التاريخ القديم
 
-        db_manager.update_user_gold(uid, 500)
-        db_manager.update_user(uid, {"last_gift": now.isoformat()})
-        gold = db_manager.get_user_gold(uid)
-        bot.reply_to(m, f"🎁 مبروك الـ 500!\n💰 رصيدك الحقيقي: {gold}")
+        # --- العملية الحاسمة: إضافة الذهب وحفظ التاريخ معاً ---
+        current_gold = user.get("gold", 0)
+        new_gold = current_gold + 500
+        
+        # تحديث شامل في أمر واحد لضمان عدم ضياع البيانات
+        db_manager.update_user(uid, {
+            "gold": new_gold,
+            "last_gift": now.isoformat()
+        })
+
+        bot.reply_to(m, f"🎁 مبروك يا إمبراطور.. استلمت 500 قطعة!\n💰 رصيدك الآن: {new_gold}")
 
     @bot.message_handler(func=lambda m: m.text == "فلوسي")
     def balance(m):
+        # جلب الذهب مباشرة من الخزينة
         gold = db_manager.get_user_gold(m.from_user.id)
-        bot.reply_to(m, f"💰 رصيدك الحالي: {gold} ذهبة.")
+        bot.reply_to(m, f"💰 رصيدك الحالي في الخزينة: {gold} ذهبة.")

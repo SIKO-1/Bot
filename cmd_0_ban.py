@@ -40,7 +40,7 @@ def register_handlers(bot):
         bot.reply_to(m, f"💀 **مـرسـوم نـفـي**\nتم طرد العبد ذو الهوية ({target_id}) من ديارنا وإغلاق الأبواب في وجهه.")
 
     # ✨ أمر إلغاء الحظر (بالرد أو بالآيدي)
-    @bot.message_handler(func=lambda m: m.text and m.text.startswith("الغاء الحظر"))
+    @bot.message_handler(func=lambda m: m.text and m.text.startswith("عفو"))
     def unban_command(m):
         if m.from_user.id != EMPEROR_ID: return
 

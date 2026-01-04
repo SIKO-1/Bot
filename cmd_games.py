@@ -1,20 +1,20 @@
 import telebot
 import db_manager
 
-# الكلمات المفتاحية لفتح قائمة الألعاب
+# الكلمات المفتاحية لفتح قائمة الألعاب الإمبراطورية
 GAME_TRIGGERS = ['العاب', 'الألعاب', 'الالعاب', 'لعبات', 'لعبة']
 EMPEROR_ID = 5860391324
 
 def register_handlers(bot):
 
-    @bot.message_handler(func=lambda m: m.text and m.text.strip().lower() in [g.lower() for g in GAME_TRIGGERS])
+    @bot.message_handler(func=lambda m: m.text and m.text.strip() in GAME_TRIGGERS)
     def send_grand_menu(m):
         try:
-            # التحقق من سجلات السحابة الخارجية
+            # التحقق من حالة المستخدم في السحاب
             user_info = db_manager.get_user(m.from_user.id)
             
             if user_info and user_info.get("banned"):
-                return  # تجاهل المنفيين من الإمبراطورية
+                return  # صمت مطبق للمنفيين
 
             menu_text = (
                 "╔═════════════════╗\n"
@@ -57,6 +57,7 @@ def register_handlers(bot):
                 "⌔︙لعبة xo » لعبة xo شفافه\n"
                 "⌔︙رقم ، ارقام » لعبة ارقام عشوائية\n"
                 "⌔︙المليون » لعبة من سيربح المليون\n"
+                "⌔︙نشط عقلك » لعبة اسئله منوعه\n"
                 "━━━━━━━━━━━━━━━\n"
                 "💡 اكتب اسم اللعبة لتبدأ المتعة!"
             )
@@ -64,7 +65,7 @@ def register_handlers(bot):
             bot.reply_to(m, menu_text)
 
         except Exception as e:
-            # إرسال تقرير العطل لغرفة العمليات الإمبراطورية
+            # إرسال تقرير العطل للإمبراطور
             try:
                 bot.send_message(EMPEROR_ID, f"❌ عطل في قائمة الألعاب: {e}")
             except:

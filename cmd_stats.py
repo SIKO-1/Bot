@@ -1,106 +1,100 @@
-import telebot
-import db_manager
-import math
+from db_manager import (
+    _get_user, get_all_users_count,
+    update_user_gold
+)
+from operator import itemgetter
 
-COMMANDS = ["إحصائيات", "سحب", "تصنيف"]
+COMMANDS = ["احصائيات", "سحب", "تصنيف"]
 
-def handle(bot: telebot.TeleBot, message: telebot.types.Message):
-    text = message.text or ""
+def handle(bot, message):
+    text = message.text.strip()
     uid = message.from_user.id
 
     if not any(text.startswith(cmd) for cmd in COMMANDS):
         return
 
-    # =========================
-    # إحصائيات المستخدمين
-    # =========================
-    if text.startswith("إحصائيات"):
-        all_users = db_manager.get_all_users()
-        total_users = len(all_users)
+    # ======================
+    # احصائيات المستخدم
+    # ======================
+    if text.startswith("احصائيات"):
+        user = _get_user(uid)
+        gold = user.get("gold", 0)
+        bank = user.get("bank", 0)
+        msgs = user.get("total_messages", 0)
+        daily = user.get("daily_usage", 0)
+        banned = "✅" if not user.get("banned", False) else "❌"
 
-        reply = "╔═════════════════╗\n"
-        reply += f"  أهلاً بك يا {message.from_user.first_name} في إدارة المستخدمين\n"
-        reply += "╚═════════════════╝\n\n"
-        reply += f"عدد المستخدمين الكلي: {total_users}\n\n"
+        report = f"""╔═════════════════╗
+أهلاً بك في إدارة المستخدمين
+╚═════════════════╝
 
-        banned = [u for u in all_users if u.get("banned", False)]
-        not_banned = [u for u in all_users if not u.get("banned", False)]
+عدد المستخدمين الكلي: {get_all_users_count()}
 
-        reply += "━━━━━━━━━━━━━━━\n"
-        reply += "الاشخاص المحظورين:\n\n"
-        for u in banned:
-            name = u.get("name") or "غير معروف"
-            username = f"@{u['username']}" if u.get("username") else "لا يوجد"
-            reply += f"- {name} / {username} / ذهب: {u['gold']} / بنك: {u['bank']} ✅\n"
+━━━━━━━━━━━━━━━
+معلوماتك:
 
-        reply += "━━━━━━━━━━━━━━━\n"
-        reply += "الاشخاص غير محظورين:\n\n"
-        for u in not_banned:
-            name = u.get("name") or "غير معروف"
-            username = f"@{u['username']}" if u.get("username") else "لا يوجد"
-            reply += f"- {name} / {username} / ذهب: {u['gold']} / بنك: {u['bank']}\n"
+• الاسم: {user.get('name') or 'غير معروف'}
+• يوزرنيم: @{user.get('username') or 'لا يوجد'}
+• الذهب: {gold}
+• البنك: {bank}
+• عدد الرسائل الكلي: {msgs}
+• الاستخدام اليومي: {daily}
+• محظور: {banned}
+━━━━━━━━━━━━━━━
+"""
+        bot.reply_to(message, report)
+        return
 
-        reply += "━━━━━━━━━━━━━━━"
-        bot.reply_to(message, reply)
-
-    # =========================
-    # سحب الذهب من مستخدم
-    # =========================
-    elif text.startswith("سحب"):
+    # ======================
+    # سحب الذهب
+    # ======================
+    if text.startswith("سحب"):
         parts = text.split()
-        if len(parts) < 3:
-            bot.reply_to(message, "⚠️ مثال صحيح: سحب <UID> <المبلغ>")
+        if len(parts) != 3:
+            bot.reply_to(message, "❌ صيغة الأمر: سحب <UID> <المبلغ>")
             return
-
-        target = parts[1]
         try:
+            target_uid = int(parts[1])
             amount = int(parts[2])
-        except:
-            bot.reply_to(message, "❌ المبلغ يجب أن يكون رقم صحيح!")
+        except ValueError:
+            bot.reply_to(message, "❌ يجب أن يكون UID والمبلغ أرقاماً صحيحة")
             return
 
-        # إذا الرد على رسالة شخص
-        target_uid = None
-        if message.reply_to_message:
-            target_uid = message.reply_to_message.from_user.id
-        else:
-            # جرب تحويل النص لـ int UID
-            try:
-                target_uid = int(target)
-            except:
-                bot.reply_to(message, "❌ لم أستطع تحديد المستخدم، استخدم الـ UID أو الرد على رسالته")
-                return
+        target_user = _get_user(target_uid)
+        old_gold = target_user.get("gold", 0)
+        new_gold = max(0, old_gold - amount)
+        update_user_gold(target_uid, -amount)
+        bot.reply_to(
+            message,
+            f"💰 سحب {amount} ذهب من {target_user.get('name') or 'غير معروف'} / @{target_user.get('username') or 'لا يوجد'}\nالرصيد الجديد: {new_gold}"
+        )
+        return
 
-        if db_manager.sweep_gold(target_uid, amount):
-            bot.reply_to(message, f"✅ تم سحب {amount} ذهب من المستخدم {target_uid}")
-        else:
-            bot.reply_to(message, f"⚠️ المستخدم {target_uid} لا يمتلك هذا المبلغ!")
-
-    # =========================
+    # ======================
     # قائمة التصنيف
-    # =========================
-    elif text.startswith("تصنيف"):
-        richest = db_manager.get_richest(5)
-        active = db_manager.get_most_active(5)
+    # ======================
+    if text.startswith("تصنيف"):
+        all_users = list(_get_all_users_list())
+        # أغنى 5 أشخاص
+        richest = sorted(all_users, key=lambda u: u.get("gold", 0), reverse=True)[:5]
+        # أكثر 5 تفاعلاً
+        active = sorted(all_users, key=lambda u: u.get("total_messages", 0), reverse=True)[:5]
 
-        reply = "╔═════════════════╗\n"
-        reply += "   قائمة التصنيف\n"
-        reply += "╚═════════════════╝\n\n"
+        report = "╔═════════════════╗\n   قائمة التصنيف\n╚═════════════════╝\n\n"
 
-        reply += "أغنى 5 أشخاص بالبوت:\n\n"
-        for idx, u in enumerate(richest, 1):
-            name = u.get("name") or "غير معروف"
-            username = f"@{u['username']}" if u.get("username") else "لا يوجد"
-            gold = u.get("gold", 0)
-            reply += f"{idx}- {name} / {username} / ذهب: {gold}\n"
+        report += "أغنى 5 أشخاص بالبوت:\n\n"
+        for i, u in enumerate(richest, 1):
+            report += f"{i}- {u.get('name') or 'غير معروف'} / @{u.get('username') or 'لا يوجد'} / ذهب: {u.get('gold',0)}\n"
+        report += "\n━━━━━━━━━━━━━━━\nأكثر 5 أشخاص تفاعلاً:\n\n"
+        for i, u in enumerate(active, 1):
+            report += f"{i}- {u.get('name') or 'غير معروف'} / رسائل: {u.get('total_messages',0)}\n"
+        report += "━━━━━━━━━━━━━━━"
+        bot.reply_to(message, report)
+        return
 
-        reply += "\n━━━━━━━━━━━━━━\n"
-        reply += "أكثر 5 أشخاص تفاعلاً:\n\n"
-        for idx, u in enumerate(active, 1):
-            name = u.get("name") or "غير معروف"
-            username = f"@{u['username']}" if u.get("username") else "لا يوجد"
-            usage = u.get("total_messages", 0)
-            reply += f"{idx}- {name} / {username} / رسائل: {usage}\n"
-
-        reply += "━━━━━━━━━━━━━━━"
-        bot.reply_to(message, reply)
+# ======================
+# دالة مساعدة للحصول على كل المستخدمين
+# ======================
+def _get_all_users_list():
+    from db_manager import users  # جلب الـ collection
+    return list(users.find({}))

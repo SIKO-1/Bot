@@ -19,13 +19,14 @@ except ConnectionFailure:
 # ======================
 # دوال مساعدة
 # ======================
-def _get_user(uid: int):
+def _get_user(uid: int, username: str = None, first_name: str = None):
+    """يرجع معلومات المستخدم ويحدث الاسم واليوزرنيم إذا تغيّر"""
     user = users.find_one({"uid": uid})
     if not user:
         user = {
             "uid": uid,
-            "name": "",
-            "username": "",
+            "first_name": first_name or "غير معروف",
+            "username": username or "لا يوجد",
             "gold": 0,
             "bank": 0,
             "inventory": [],
@@ -35,6 +36,14 @@ def _get_user(uid: int):
             "daily_usage": 0
         }
         users.insert_one(user)
+    else:
+        update = {}
+        if username and user.get("username") != username:
+            update["username"] = username
+        if first_name and user.get("first_name") != first_name:
+            update["first_name"] = first_name
+        if update:
+            users.update_one({"uid": uid}, {"$set": update})
     return user
 
 # ======================
@@ -102,8 +111,7 @@ def unban_user(uid: int):
     users.update_one({"uid": uid}, {"$set": {"banned": False}})
 
 def list_banned_users() -> list:
-    banned = users.find({"banned": True})
-    return [u["uid"] for u in banned]
+    return [u["uid"] for u in users.find({"banned": True})]
 
 # ======================
 # المخزون / Inventory
@@ -134,39 +142,20 @@ def remove_from_inventory(uid: int, item: str, quantity: int = 1) -> bool:
 # إحصائيات المستخدمين
 # ======================
 def increment_messages(uid: int):
-    users.update_one({"uid": uid}, {"$inc": {"total_messages": 1, "daily_usage": 1}}, upsert=True)
+    users.update_one({"uid": uid}, {"$inc": {"total_messages": 1, "daily_usage": 1}})
 
 def get_user_stats(uid: int) -> dict:
     user = _get_user(uid)
     return {
+        "first_name": user.get("first_name", "غير معروف"),
+        "username": user.get("username", "لا يوجد"),
         "gold": user.get("gold", 0),
         "bank": user.get("bank", 0),
         "inventory": user.get("inventory", []),
         "total_messages": user.get("total_messages", 0),
         "daily_usage": user.get("daily_usage", 0),
-        "banned": user.get("banned", False),
-        "name": user.get("name", ""),
-        "username": user.get("username", "")
+        "banned": user.get("banned", False)
     }
-
-def get_all_users() -> list:
-    return list(users.find({}))
-
-def get_user_by_uid(uid: int) -> dict:
-    return _get_user(uid)
-
-def sweep_gold(uid: int, amount: int) -> bool:
-    user = _get_user(uid)
-    if amount <= 0 or user["gold"] < amount:
-        return False
-    update_user_gold(uid, -amount)
-    return True
-
-def get_richest(n: int = 5) -> list:
-    return sorted(get_all_users(), key=lambda x: x["gold"], reverse=True)[:n]
-
-def get_most_active(n: int = 5) -> list:
-    return sorted(get_all_users(), key=lambda x: x.get("total_messages", 0), reverse=True)[:n]
 
 def get_all_users_count() -> int:
     return users.count_documents({})

@@ -117,8 +117,8 @@ def start(message):
 # ======================
 # تحديث الملفات
 # ======================
-@bot.message_handler(func=lambda m: m.text and m.text.strip() == "تحديث")
-def update_files(message):
+@bot.message_handler(func=lambda m: m.text and m.text.strip() != "تحديث")
+def dispatcher(message):
     if message.from_user.id != DEV_ID:
         bot.send_message(message.chat.id, "❌ هذا الأمر للمطور فقط", parse_mode=None)
         return

@@ -1,110 +1,53 @@
 # ملف: cmd_users_admin.py
+import telebot
 import db_manager
 
-# ضع آيدي المطور هنا
-DEVELOPER_ID = 5860391324  # ← غيره لآيديك
-
-COMMANDS = [
-    "مستخدم",
-    "ادارة مستخدم",
-    "ادارة المستخدم"
-]
+COMMANDS = ["ادارة_المستخدمين", "مستخدمين", "stats", "احصائيات", "سحب"]
 
 def handle(bot, message):
-    uid = message.from_user.id
+    DEV_ID = 5860391324
+    if message.from_user.id != DEV_ID:
+        return bot.reply_to(message, "❌ أنت لست المطور!")
 
-    # حماية: للمطور فقط
-    if uid != DEVELOPER_ID:
-        return
-
-    text = message.text.strip()
-
-    # ======================
-    # عرض معلومات مستخدم (بالرد)
-    # ======================
-    if text.startswith("مستخدم") and message.reply_to_message:
-        target = message.reply_to_message.from_user
-        tid = target.id
-
-        gold = db_manager.get_user_gold(tid)
-        banned = db_manager.is_user_banned(tid)
-        inventory = db_manager.get_inventory(tid)
-
-        info = (
-            "╔═════════════════╗\n"
-            "   إدارة المستخدم\n"
-            "╚═════════════════╝\n\n"
-            f"👤 الاسم : {target.first_name}\n"
-            f"🆔 الايدي : {tid}\n"
-            f"💰 الذهب : {gold}\n"
-            f"🚫 محظور : {'نعم' if banned else 'لا'}\n"
-            f"🎒 العناصر : {len(inventory)}\n"
+    parts = message.text.split()
+    if len(parts) < 2:
+        return bot.reply_to(message,
+            "⚠️ استخدم:\n"
+            "• احصائيات <id>\n"
+            "• سحب <id> <المبلغ>"
         )
-        bot.reply_to(message, info)
-        return
+
+    command = parts[1].lower()
 
     # ======================
-    # حظر مستخدم (بالرد)
+    # احصائيات مستخدم
     # ======================
-    if text == "بان" and message.reply_to_message:
-        tid = message.reply_to_message.from_user.id
-        db_manager.ban_user(tid)
-        bot.reply_to(message, "⛔ تم نفي المستخدم خارج الإمبراطورية.")
-        return
-
-    # ======================
-    # عفو (رفع الحظر)
-    # ======================
-    if text == "الغاء بان" and message.reply_to_message:
-        tid = message.reply_to_message.from_user.id
-        db_manager.unban_user(tid)
-        try:
-            bot.send_message(
-                tid,
-                "🕊️ عفو عام\n\n"
-                "بأمر من الإمبراطور تم العفو عنك.\n"
-                "أحسن السلوك ولا تختبر الصبر مرة أخرى."
-            )
-        except:
-            pass
-        bot.reply_to(message, "✅ تم العفو عن المستخدم.")
-        return
-
-    # ======================
-    # شحن (بالرد + رقم)
-    # ======================
-    if text.startswith("شحن") and message.reply_to_message:
-        parts = text.split()
-        if len(parts) != 2:
-            bot.reply_to(message, "❌ الصيغة: شحن 1000")
-            return
-
-        try:
-            amount = int(parts[1])
-        except:
-            bot.reply_to(message, "❌ اكتب رقم صحيح.")
-            return
-
-        tid = message.reply_to_message.from_user.id
-        db_manager.update_user_gold(tid, amount)
-        bot.reply_to(
-            message,
-            f"💰 تم شحن {amount} ذهبة للمستخدم."
+    if command in ["احصائيات", "stats"] and len(parts) >= 3:
+        uid = int(parts[2])
+        stats = db_manager.get_user_stats(uid)
+        text = (
+            f"📊 احصائيات المستخدم {uid}:\n"
+            f"💰 الذهب: {stats['gold']}\n"
+            f"🏦 البنك: {stats['bank']}\n"
+            f"🎒 المخزون: {', '.join(stats['inventory']) if stats['inventory'] else 'فارغ'}\n"
+            f"📨 الرسائل الكلية: {stats['total_messages']}\n"
+            f"⏱ الاستخدام اليومي: {stats['daily_usage']}\n"
+            f"🚫 محظور: {'نعم' if stats['banned'] else 'لا'}"
         )
-        return
+        bot.reply_to(message, text)
 
     # ======================
-    # قائمة الحظر
+    # سحب رصيد
     # ======================
-    if text == "قائمة الحظر":
-        banned = db_manager.get_banned_users()
-        if not banned:
-            bot.reply_to(message, "✅ لا يوجد محظورين.")
-            return
+    elif command == "سحب" and len(parts) >= 4:
+        uid = int(parts[2])
+        try:
+            amount = int(parts[3])
+        except:
+            return bot.reply_to(message, "❌ المبلغ يجب أن يكون رقم صحيح!")
 
-        msg = "🚫 قائمة المنفيين:\n\n"
-        for u in banned:
-            msg += f"- {u}\n"
+        db_manager.update_user_gold(uid, -amount)
+        bot.reply_to(message, f"✅ تم سحب {amount} ذهب من المستخدم {uid}")
 
-        bot.reply_to(message, msg)
-        return
+    else:
+        bot.reply_to(message, "⚠️ أمر غير معروف أو ناقص المعطيات")

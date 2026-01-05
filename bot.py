@@ -3,6 +3,7 @@ import telebot
 import importlib.util
 import traceback
 import db_manager
+from operator import itemgetter
 
 # ======================
 # الإعدادات
@@ -14,7 +15,7 @@ BOT_ENABLED = True  # متغير عالمي لإطفاء/تشغيل البوت
 if not TOKEN:
     raise RuntimeError("❌ BOT_TOKEN غير موجود")
 
-bot = telebot.TeleBot(TOKEN)  # بدون parse_mode لتجنب الأخطاء
+bot = telebot.TeleBot(TOKEN)  # بدون parse_mode لتجنب أخطاء HTML
 
 cmd_modules = {}
 game_modules = {}
@@ -97,15 +98,15 @@ def update_files(message):
     bot.send_message(message.chat.id, report)
 
 # ======================
-# تمرير الرسائل للموديولات مع الصمت العقابي وإطفاء/تشغيل البوت
+# Dispatcher مع الصمت العقابي واطفاء/تشغيل البوت
 # ======================
 def dispatch_message(message):
     global BOT_ENABLED
     uid = message.from_user.id
+    text = message.text.strip() if message.text else ""
 
     # ======= أوامر المطور لإطفاء / تشغيل =======
     if uid == DEV_ID:
-        text = message.text.strip()
         if text == "اطفاء":
             BOT_ENABLED = False
             bot.reply_to(message, "🔴 تم إطفاء البوت بأمر الإمبراطور.")
@@ -117,7 +118,7 @@ def dispatch_message(message):
 
     # ======= إذا البوت مطفأ =======
     if not BOT_ENABLED:
-        return  # صمت كامل
+        return
 
     # ======= صمت عقابي للمحظورين =======
     if db_manager.is_user_banned(uid):
@@ -127,7 +128,76 @@ def dispatch_message(message):
             pass
         return
 
-    # ======= تمرير الرسالة للموديولات =======
+    # ======= أوامر المطور: سحب رصيد أو احصائيات أو تصنيف =======
+    if uid == DEV_ID and text:
+        parts = text.split()
+        cmd = parts[0].lower()
+
+        # ----- احصائيات -----
+        if cmd == "احصائيات":
+            all_users = db_manager.users.find()
+            report = "╔═════════════════╗\n"
+            report += "  👑 إحصائيات المستخدمين الإمبراطوريين\n"
+            report += "╚═════════════════╝\n\n"
+            report += f"عدد المستخدمين الكلي: {db_manager.get_all_users_count()}\n\n"
+            report += "━━━━━━━━━━━━━━━\n"
+            report += "📊 احصائيات بعض المستخدمين:\n"
+            for u in all_users:
+                name = u.get("name") or "غير معروف"
+                username = f"@{u.get('username')}" if u.get("username") else "لا يوجد"
+                gold = u.get("gold", 0)
+                bank = u.get("bank", 0)
+                banned = "✅" if u.get("banned") else "❌"
+                report += f"• {name} / {username} / ذهب: {gold} / بنك: {bank} / محظور: {banned}\n"
+            bot.reply_to(message, report)
+            return
+
+        # ----- سحب رصيد -----
+        if cmd == "سحب" and len(parts) >= 3:
+            target_uid = parts[1]
+            amount = int(parts[2])
+            # نبحث عن المستخدم بالـ uid
+            try:
+                target_uid = int(target_uid)
+                user = db_manager._get_user(target_uid)
+                db_manager.update_user_gold(target_uid, -amount)
+                bot.reply_to(message, f"💸 تم سحب {amount} ذهب من {user.get('name') or 'غير معروف'} / @{user.get('username') or 'لا يوجد'}")
+            except Exception as e:
+                bot.reply_to(message, f"❌ حدث خطأ: {e}")
+            return
+
+        # ----- تصنيف -----
+        if cmd == "تصنيف":
+            # أغنى 5 أشخاص
+            users_sorted = sorted(db_manager.users.find(), key=lambda x: x.get("gold",0), reverse=True)
+            top5_rich = users_sorted[:5]
+
+            # أكثر 5 متفاعلين
+            users_sorted_usage = sorted(db_manager.users.find(), key=lambda x: x.get("total_messages",0), reverse=True)
+            top5_active = users_sorted_usage[:5]
+
+            report = "╔═════════════════╗\n"
+            report += "   قائمة التصنيف\n"
+            report += "╚═════════════════╝\n\n"
+
+            report += "أغنى 5 أشخاص بالبوت:\n\n"
+            for i, u in enumerate(top5_rich, start=1):
+                name = u.get("name") or "غير معروف"
+                username = f"@{u.get('username')}" if u.get("username") else "لا يوجد"
+                gold = u.get("gold", 0)
+                report += f"{i}- {name} / {username} / ذهب: {gold}\n"
+            report += "\n━━━━━━━━━━━━━━\n"
+            report += "أكثر 5 أشخاص متفاعلين:\n\n"
+            for i, u in enumerate(top5_active, start=1):
+                name = u.get("name") or "غير معروف"
+                username = f"@{u.get('username')}" if u.get("username") else "لا يوجد"
+                total_msg = u.get("total_messages", 0)
+                report += f"{i}- {name} / {username} / رسائل: {total_msg}\n"
+            report += "\n━━━━━━━━━━━━━━━"
+            bot.reply_to(message, report)
+            return
+
+    # ======= تمرير الرسالة للموديولات -----
     try:
         for module in cmd_modules.values():
             module.handle(bot, message)

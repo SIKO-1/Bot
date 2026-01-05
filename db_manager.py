@@ -104,3 +104,22 @@ def ban_user(uid: int):
 
 def unban_user(uid: int):
     users.update_one({"uid": uid}, {"$set": {"banned": False}})
+
+# ======================
+# Inventory
+# ======================
+def get_inventory(uid: int):
+    user = _get_user(uid)
+    return user.get("inventory", [])
+
+def add_to_inventory(uid: int, item: str):
+    users.update_one(
+        {"uid": uid},
+        {"$addToSet": {"inventory": item}}
+    )
+
+def remove_from_inventory(uid: int, item: str):
+    users.update_one(
+        {"uid": uid},
+        {"$pull": {"inventory": item}}
+    )

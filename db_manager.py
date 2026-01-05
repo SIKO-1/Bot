@@ -18,57 +18,41 @@ except ConnectionFailure:
     print("❌ فشل الاتصال بـ MongoDB")
 
 # ======================
-# دوال المستخدم
-# ======================
-def get_user(uid: int) -> dict:
-    user = users_collection.find_one({"uid": uid})
-    if not user:
-        # إنشاء مستخدم جديد
-        user_data = {
-            "uid": uid,
-            "gold": 0,
-            "bank": 0,
-            "inventory": [],
-            "last_gift": 0
-        }
-        users_collection.insert_one(user_data)
-        return user_data
-    return user
-
-# ======================
-# الذهب العادي
+# دوال الذهب
 # ======================
 def get_user_gold(uid: int) -> int:
-    return get_user(uid).get("gold", 0)
+    user = users_collection.find_one({"uid": uid})
+    if user:
+        return user.get("gold", 0)
+    return 0
 
 def update_user_gold(uid: int, amount: int) -> int:
-    user = get_user(uid)
-    new_gold = max(user.get("gold", 0) + amount, 0)
-    users_collection.update_one({"uid": uid}, {"$set": {"gold": new_gold}})
-    return new_gold
+    user = users_collection.find_one({"uid": uid})
+    if user:
+        new_gold = user.get("gold", 0) + amount
+        if new_gold < 0:
+            new_gold = 0
+        users_collection.update_one({"uid": uid}, {"$set": {"gold": new_gold}})
+        return new_gold
+    else:
+        users_collection.insert_one({
+            "uid": uid,
+            "gold": max(0, amount),
+            "inventory": [],
+            "last_gift": 0,
+            "banned": False
+        })
+        return max(0, amount)
 
 # ======================
-# البنك
-# ======================
-def get_user_bank(uid: int) -> int:
-    return get_user(uid).get("bank", 0)
-
-def update_user_bank(uid: int, amount: int) -> int:
-    user = get_user(uid)
-    new_bank = max(user.get("bank", 0) + amount, 0)
-    users_collection.update_one({"uid": uid}, {"$set": {"bank": new_bank}})
-    return new_bank
-
-def get_total_bank() -> int:
-    return sum(user.get("bank", 0) for user in users_collection.find())
-
-# ======================
-# الهدايا اليومية
+# دوال الهدايا اليومية
 # ======================
 def can_take_gift(uid: int) -> bool:
-    user = get_user(uid)
+    user = users_collection.find_one({"uid": uid})
+    if not user:
+        return True
     last = user.get("last_gift", 0)
-    return time.time() - last >= 86400  # 24 ساعة
+    return time.time() - last >= 86400
 
 def take_gift(uid: int, amount: int = 100) -> int | None:
     if can_take_gift(uid):
@@ -78,19 +62,33 @@ def take_gift(uid: int, amount: int = 100) -> int | None:
     return None
 
 # ======================
-# المخزون / Inventory
+# دوال المخزون
 # ======================
 def get_inventory(uid: int) -> list:
-    return get_user(uid).get("inventory", [])
+    user = users_collection.find_one({"uid": uid})
+    if user:
+        return user.get("inventory", [])
+    return []
 
 def add_to_inventory(uid: int, item: str, quantity: int = 1) -> None:
-    user = get_user(uid)
-    inventory = user.get("inventory", [])
-    inventory.extend([item] * quantity)
-    users_collection.update_one({"uid": uid}, {"$set": {"inventory": inventory}})
+    user = users_collection.find_one({"uid": uid})
+    if user:
+        inventory = user.get("inventory", [])
+        inventory.extend([item] * quantity)
+        users_collection.update_one({"uid": uid}, {"$set": {"inventory": inventory}})
+    else:
+        users_collection.insert_one({
+            "uid": uid,
+            "gold": 0,
+            "inventory": [item] * quantity,
+            "last_gift": 0,
+            "banned": False
+        })
 
 def remove_from_inventory(uid: int, item: str, quantity: int = 1) -> bool:
-    user = get_user(uid)
+    user = users_collection.find_one({"uid": uid})
+    if not user:
+        return False
     inventory = user.get("inventory", [])
     count = 0
     new_inventory = []
@@ -103,8 +101,19 @@ def remove_from_inventory(uid: int, item: str, quantity: int = 1) -> bool:
     return count == quantity
 
 # ======================
-# المستوى (كل 500 ذهب = +10 مستويات)
+# دوال الحظر والعفو
 # ======================
-def get_user_level(uid: int) -> int:
-    gold = get_user_gold(uid)
-    return (gold // 500) * 10
+def ban_user(uid: int) -> None:
+    users_collection.update_one({"uid": uid}, {"$set": {"banned": True}}, upsert=True)
+
+def unban_user(uid: int) -> None:
+    users_collection.update_one({"uid": uid}, {"$set": {"banned": False}}, upsert=True)
+
+def is_banned(uid: int) -> bool:
+    user = users_collection.find_one({"uid": uid})
+    if user:
+        return user.get("banned", False)
+    return False
+
+def get_banned_users() -> list:
+    return [u["uid"] for u in users_collection.find({"banned": True})]

@@ -1,57 +1,73 @@
 # ملف: cmd_users_admin.py
-import telebot
 import db_manager
-import time
 
-COMMANDS = ["ادارة_المستخدمين", "users_admin", "المستخدمين"]
+COMMANDS = ["ادارة_المستخدمين", "المستخدمين", "users_admin"]
+
+DEV_ID = 5860391324  # ايديك كمطور
 
 def handle(bot, message):
-    # فقط المطور يقدر يستخدم الأمر
-    DEV_ID = 5860391324
     if message.from_user.id != DEV_ID:
         return
 
-    if message.text not in COMMANDS and not message.text.startswith("سحب"):
+    if message.text not in COMMANDS:
         return
 
-    user_name = message.from_user.first_name
-    text = message.text
+    dev_name = message.from_user.first_name
+    dev_tag = f"@{message.from_user.username}" if message.from_user.username else dev_name
 
-    # =========================
-    # قائمة المستخدمين وإحصائياتهم
-    # =========================
-    if text in ["ادارة_المستخدمين", "users_admin", "المستخدمين"]:
-        all_users = db_manager.users.find()
-        total_users = db_manager.users.count_documents({})
-        reply = f"👑 إدارة المستخدمين الإمبراطوريين\n"
-        reply += f"⸻⸻⸻⸻⸻⸻⸻⸻⸻⸻\n"
-        reply += f"عدد المستخدمين الكلي: {total_users}\n\n"
-        reply += f"📊 احصائيات بعض المستخدمين:\n"
-        for user in all_users.limit(20):  # نعرض أول 20 مستخدم
-            uid = user["uid"]
-            gold = user.get("gold", 0)
-            bank = user.get("bank", 0)
-            banned = "✅" if user.get("banned", False) else "❌"
-            reply += f"• UID {uid} — ذهب: {gold}, بنك: {bank}, محظور: {banned}\n"
-        bot.reply_to(message, reply)
+    users = list(db_manager.users.find())
+    total_users = len(users)
 
-    # =========================
-    # سحب رصيد من مستخدم
-    # صيغة: سحب <UID> <المبلغ>
-    # =========================
-    elif text.startswith("سحب"):
-        parts = text.split()
-        if len(parts) < 3:
-            return bot.reply_to(message, "⚠️ صيغة خاطئة! مثال: سحب 5860391324 500")
-        try:
-            uid = int(parts[1])
-            amount = int(parts[2])
-        except:
-            return bot.reply_to(message, "❌ UID أو المبلغ يجب أن يكون رقم صحيح!")
+    banned_users = []
+    normal_users = []
 
-        user_gold = db_manager.get_user_gold(uid)
-        if amount > user_gold:
-            return bot.reply_to(message, f"⚠️ لا يمكن سحب {amount} ذهب، رصيد المستخدم {user_gold} فقط!")
+    for user in users:
+        uid = user["uid"]
+        gold = user.get("gold", 0)
+        bank = user.get("bank", 0)
+        banned = user.get("banned", False)
+        username = user.get("username")
+        first_name = user.get("first_name", "مستخدم")
 
-        db_manager.update_user_gold(uid, -amount)
-        bot.reply_to(message, f"✅ تم سحب {amount} ذهب من المستخدم UID {uid} بنجاح!")
+        tag = f"@{username}" if username else first_name
+
+        user_line = (
+            f"- {tag}\n"
+            f"  ID: {uid}\n"
+            f"  💰 ذهب: {gold}\n"
+            f"  🏦 بنك: {bank}\n"
+        )
+
+        if banned:
+            banned_users.append(user_line)
+        else:
+            normal_users.append(user_line)
+
+    text = ""
+    text += "╔═════════════════╗\n"
+    text += f"  أهلاً بك يا : {dev_tag}\n"
+    text += "  في إدارة المستخدمين\n"
+    text += "╚═════════════════╝\n\n"
+
+    text += "━━━━━━━━━━━━━━━\n"
+    text += f"👥 عدد المستخدمين الكلي : {total_users}\n"
+    text += "━━━━━━━━━━━━━━━\n\n"
+
+    text += "🚫 الاشخاص المحظورين :\n"
+    text += "━━━━━━━━━━━━━━━\n"
+    if banned_users:
+        for u in banned_users:
+            text += u + "\n"
+    else:
+        text += "- لا يوجد مستخدمين محظورين\n\n"
+
+    text += "━━━━━━━━━━━━━━━\n"
+    text += "✅ الاشخاص غير المحظورين :\n"
+    text += "━━━━━━━━━━━━━━━\n"
+    if normal_users:
+        for u in normal_users:
+            text += u + "\n"
+    else:
+        text += "- لا يوجد مستخدمين\n"
+
+    bot.reply_to(message, text)

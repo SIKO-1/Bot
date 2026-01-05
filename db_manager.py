@@ -8,12 +8,16 @@ from pymongo.errors import ConnectionFailure
 MONGO_URI = "mongodb+srv://wpee923_db_user:08520852KR@cluster0.nzjd5gc.mongodb.net/?retryWrites=true&w=majority"
 DB_NAME = "imperial_bot"
 
-client = MongoClient(MONGO_URI)
-db = client[DB_NAME]
-users = db["users"]
+try:
+    client = MongoClient(MONGO_URI)
+    db = client[DB_NAME]
+    users = db["users"]
+    print("✅ MongoDB متصل بنجاح!")
+except ConnectionFailure:
+    print("❌ فشل الاتصال بـ MongoDB")
 
 # ======================
-# أدوات مساعدة
+# دوال مساعدة
 # ======================
 def _get_user(uid: int):
     user = users.find_one({"uid": uid})
@@ -24,13 +28,15 @@ def _get_user(uid: int):
             "bank": 0,
             "inventory": [],
             "last_gift": 0,
-            "banned": False
+            "banned": False,
+            "total_messages": 0,
+            "daily_usage": 0
         }
         users.insert_one(user)
     return user
 
 # ======================
-# الذهب (Gold)
+# الذهب
 # ======================
 def get_user_gold(uid: int) -> int:
     return _get_user(uid).get("gold", 0)
@@ -42,19 +48,15 @@ def update_user_gold(uid: int, amount: int) -> int:
     return new_gold
 
 # ======================
-# البنك (Bank)
+# البنك
 # ======================
 def get_user_bank(uid: int) -> int:
     return _get_user(uid).get("bank", 0)
 
 def deposit_to_bank(uid: int, amount: int) -> bool:
-    if amount <= 0:
-        return False
-
     user = _get_user(uid)
-    if user["gold"] < amount:
+    if amount <= 0 or user["gold"] < amount:
         return False
-
     users.update_one(
         {"uid": uid},
         {"$inc": {"gold": -amount, "bank": amount}}
@@ -62,13 +64,9 @@ def deposit_to_bank(uid: int, amount: int) -> bool:
     return True
 
 def withdraw_from_bank(uid: int, amount: int) -> bool:
-    if amount <= 0:
-        return False
-
     user = _get_user(uid)
-    if user["bank"] < amount:
+    if amount <= 0 or user["bank"] < amount:
         return False
-
     users.update_one(
         {"uid": uid},
         {"$inc": {"bank": -amount, "gold": amount}}
@@ -85,16 +83,12 @@ def can_take_gift(uid: int) -> bool:
 def take_gift(uid: int, amount: int = 100):
     if not can_take_gift(uid):
         return None
-
     update_user_gold(uid, amount)
-    users.update_one(
-        {"uid": uid},
-        {"$set": {"last_gift": time.time()}}
-    )
+    users.update_one({"uid": uid}, {"$set": {"last_gift": time.time()}})
     return get_user_gold(uid)
 
 # ======================
-# الحظر (Ban)
+# الحظر والعفو
 # ======================
 def is_user_banned(uid: int) -> bool:
     return _get_user(uid).get("banned", False)
@@ -105,21 +99,54 @@ def ban_user(uid: int):
 def unban_user(uid: int):
     users.update_one({"uid": uid}, {"$set": {"banned": False}})
 
+def list_banned_users() -> list:
+    banned = users.find({"banned": True})
+    return [u["uid"] for u in banned]
+
 # ======================
-# Inventory
+# المخزون / Inventory
 # ======================
-def get_inventory(uid: int):
+def get_inventory(uid: int) -> list:
+    return _get_user(uid).get("inventory", [])
+
+def add_to_inventory(uid: int, item: str, quantity: int = 1):
     user = _get_user(uid)
-    return user.get("inventory", [])
+    inventory = user.get("inventory", [])
+    inventory.extend([item] * quantity)
+    users.update_one({"uid": uid}, {"$set": {"inventory": inventory}})
 
-def add_to_inventory(uid: int, item: str):
-    users.update_one(
-        {"uid": uid},
-        {"$addToSet": {"inventory": item}}
-    )
+def remove_from_inventory(uid: int, item: str, quantity: int = 1) -> bool:
+    user = _get_user(uid)
+    inventory = user.get("inventory", [])
+    count = 0
+    new_inventory = []
+    for i in inventory:
+        if i == item and count < quantity:
+            count += 1
+            continue
+        new_inventory.append(i)
+    users.update_one({"uid": uid}, {"$set": {"inventory": new_inventory}})
+    return count == quantity
 
-def remove_from_inventory(uid: int, item: str):
-    users.update_one(
-        {"uid": uid},
-        {"$pull": {"inventory": item}}
-    )
+# ======================
+# إحصائيات المستخدمين
+# ======================
+def increment_messages(uid: int):
+    users.update_one({"uid": uid}, {"$inc": {"total_messages": 1, "daily_usage": 1}})
+
+def get_user_stats(uid: int) -> dict:
+    user = _get_user(uid)
+    return {
+        "gold": user.get("gold", 0),
+        "bank": user.get("bank", 0),
+        "inventory": user.get("inventory", []),
+        "total_messages": user.get("total_messages", 0),
+        "daily_usage": user.get("daily_usage", 0),
+        "banned": user.get("banned", False)
+    }
+
+def get_all_users_count() -> int:
+    return users.count_documents({})
+
+def reset_daily_usage():
+    users.update_many({}, {"$set": {"daily_usage": 0}})

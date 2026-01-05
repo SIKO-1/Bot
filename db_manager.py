@@ -162,3 +162,22 @@ def get_all_users_count() -> int:
 
 def reset_daily_usage():
     users.update_many({}, {"$set": {"daily_usage": 0}})
+
+# ======================
+# مهمات يومية وصناديق الحظ
+# ======================
+def set_daily_task(uid, task):
+    users.update_one({"uid": uid}, {"$set": {"daily_task": task, "box_ready": False, "box_opened": False}})
+
+def get_daily_task(uid):
+    return _get_user(uid).get("daily_task", "")
+
+def complete_daily_task(uid):
+    users.update_one({"uid": uid}, {"$set": {"box_ready": True, "daily_task": ""}})
+
+def can_open_box(uid):
+    user = _get_user(uid)
+    return user.get("box_ready", False) and not user.get("box_opened", False)
+
+def set_box_opened(uid):
+    users.update_one({"uid": uid}, {"$set": {"box_opened": True}})

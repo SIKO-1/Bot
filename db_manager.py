@@ -24,6 +24,8 @@ def _get_user(uid: int):
     if not user:
         user = {
             "uid": uid,
+            "name": "",
+            "username": "",
             "gold": 0,
             "bank": 0,
             "inventory": [],
@@ -132,7 +134,7 @@ def remove_from_inventory(uid: int, item: str, quantity: int = 1) -> bool:
 # إحصائيات المستخدمين
 # ======================
 def increment_messages(uid: int):
-    users.update_one({"uid": uid}, {"$inc": {"total_messages": 1, "daily_usage": 1}})
+    users.update_one({"uid": uid}, {"$inc": {"total_messages": 1, "daily_usage": 1}}, upsert=True)
 
 def get_user_stats(uid: int) -> dict:
     user = _get_user(uid)
@@ -142,8 +144,29 @@ def get_user_stats(uid: int) -> dict:
         "inventory": user.get("inventory", []),
         "total_messages": user.get("total_messages", 0),
         "daily_usage": user.get("daily_usage", 0),
-        "banned": user.get("banned", False)
+        "banned": user.get("banned", False),
+        "name": user.get("name", ""),
+        "username": user.get("username", "")
     }
+
+def get_all_users() -> list:
+    return list(users.find({}))
+
+def get_user_by_uid(uid: int) -> dict:
+    return _get_user(uid)
+
+def sweep_gold(uid: int, amount: int) -> bool:
+    user = _get_user(uid)
+    if amount <= 0 or user["gold"] < amount:
+        return False
+    update_user_gold(uid, -amount)
+    return True
+
+def get_richest(n: int = 5) -> list:
+    return sorted(get_all_users(), key=lambda x: x["gold"], reverse=True)[:n]
+
+def get_most_active(n: int = 5) -> list:
+    return sorted(get_all_users(), key=lambda x: x.get("total_messages", 0), reverse=True)[:n]
 
 def get_all_users_count() -> int:
     return users.count_documents({})

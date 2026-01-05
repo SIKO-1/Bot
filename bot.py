@@ -9,11 +9,12 @@ import db_manager
 # ======================
 TOKEN = os.getenv("BOT_TOKEN")
 DEV_ID = 5860391324
+BOT_ENABLED = True  # متغير عالمي لإطفاء/تشغيل البوت
 
 if not TOKEN:
     raise RuntimeError("❌ BOT_TOKEN غير موجود")
 
-bot = telebot.TeleBot(TOKEN)  # بدون parse_mode افتراضي
+bot = telebot.TeleBot(TOKEN)  # بدون parse_mode لتجنب الأخطاء
 
 cmd_modules = {}
 game_modules = {}
@@ -23,6 +24,8 @@ module_errors = {}
 # تحميل الموديولات
 # ======================
 def load_modules():
+    global cmd_modules, game_modules, module_errors
+
     cmd_modules.clear()
     game_modules.clear()
     module_errors.clear()
@@ -54,21 +57,21 @@ def load_modules():
             try:
                 bot.send_message(
                     DEV_ID,
-                    f"⚠️ خطأ في تحميل:\n{filename}\n\n{e}"
+                    f"⚠️ خطأ في تحميل الملف:\n{filename}\n\n{e}"
                 )
             except:
                 pass
 
 # ======================
-# أوامر خاصة (قبل أي شيء)
+# أوامر البداية وتحديث الموديولات
 # ======================
 @bot.message_handler(commands=["start"])
 def start(message):
     bot.reply_to(
         message,
         "🤖 البوت شغال\n"
-        "• الأوامر في cmd_*\n"
-        "• الألعاب في game_*\n"
+        "• كل الأوامر موجودة في cmd_*\n"
+        "• كل الألعاب موجودة في game_*\n"
         "• اكتب: تحديث"
     )
 
@@ -80,7 +83,7 @@ def update_files(message):
 
     load_modules()
 
-    report = "🔄 تحديث الملفات\n\n"
+    report = "🔄 تم تحديث الموديولات\n\n"
     report += "✅ CMD:\n"
     report += "\n".join(cmd_modules.keys()) or "— لا يوجد"
     report += "\n\n🎮 GAME:\n"
@@ -94,12 +97,29 @@ def update_files(message):
     bot.send_message(message.chat.id, report)
 
 # ======================
-# Dispatcher (دالة فقط)
+# تمرير الرسائل للموديولات مع الصمت العقابي وإطفاء/تشغيل البوت
 # ======================
 def dispatch_message(message):
+    global BOT_ENABLED
     uid = message.from_user.id
 
-    # ===== صمت عقابي =====
+    # ======= أوامر المطور لإطفاء / تشغيل =======
+    if uid == DEV_ID:
+        text = message.text.strip()
+        if text == "اطفاء":
+            BOT_ENABLED = False
+            bot.reply_to(message, "🔴 تم إطفاء البوت بأمر الإمبراطور.")
+            return
+        if text == "تشغيل":
+            BOT_ENABLED = True
+            bot.reply_to(message, "🟢 عاد البوت للحياة بأمر الإمبراطور.")
+            return
+
+    # ======= إذا البوت مطفأ =======
+    if not BOT_ENABLED:
+        return  # صمت كامل
+
+    # ======= صمت عقابي للمحظورين =======
     if db_manager.is_user_banned(uid):
         try:
             bot.delete_message(message.chat.id, message.message_id)
@@ -107,6 +127,7 @@ def dispatch_message(message):
             pass
         return
 
+    # ======= تمرير الرسالة للموديولات =======
     try:
         for module in cmd_modules.values():
             module.handle(bot, message)
@@ -120,7 +141,7 @@ def dispatch_message(message):
             pass
 
 # ======================
-# Handler عام (آخر الملف)
+# Handler عام
 # ======================
 @bot.message_handler(func=lambda m: True)
 def main_handler(message):

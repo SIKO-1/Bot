@@ -1,6 +1,9 @@
 import random
 import time
-import db_manager  # الربط مع الخزنة الحديدية
+import db_manager  # الربط مع الخزنة والمهام والمخزون
+
+MISSION_KEY = "roulette_win"  # مفتاح مهمة الروليت
+REWARD_ITEM = "🎁 صندوق الحظ"
 
 def handle(bot, message):
     if not message.text.startswith("روليت"):
@@ -9,96 +12,106 @@ def handle(bot, message):
     uid = message.from_user.id
     user_gold = db_manager.get_user_gold(uid)
 
-    # 1. التأكد من كتابة مبلغ الرهان
+    # ───────── 1. التحقق من الرهان ─────────
     parts = message.text.split()
     if len(parts) < 2:
-        text_err = (
-            "┏━━━━━━━ ● ━━━━━━━┓\n"
-            "         ⌯ تنبيه ملكي ⌯\n"
-            "┗━━━━━━━ ● ━━━━━━━┛\n\n"
-            "⚠️ يجب تحديد مبلغ الرهان من خزنتك!\n"
-            "💡 مثال : روليت 500"
+        return bot.reply_to(
+            message,
+            "⚠️ يجب تحديد مبلغ الرهان\n"
+            "💡 مثال: روليت 500"
         )
-        return bot.reply_to(message, text_err)
 
     try:
         bet = int(parts[1])
     except ValueError:
-        return bot.reply_to(message, "❌ يا ملك.. يرجى كتابة الرهان بالأرقام فقط!")
+        return bot.reply_to(message, "❌ الرهان يجب أن يكون رقماً صحيحاً")
 
-    # 2. قوانين الإمبراطورية للرهان
     if bet <= 0:
-        return bot.reply_to(message, "🚫 لا يمكنك الرهان بالهواء! ضع ذهباً حقيقياً.")
+        return bot.reply_to(message, "🚫 لا يمكنك الرهان بمبلغ صفر أو أقل")
 
     if bet > user_gold:
-        text_poor = (
-            "┏━━━━━━━ ● ━━━━━━━┓\n"
-            "         ⌯ عجز مالي ⌯\n"
-            "┗━━━━━━━ ● ━━━━━━━┛\n\n"
-            f"💸 رصيدك الحالي: {user_gold} ذهبة فقط\n"
-            f"❌ لا يمكنك الرهان بمبلغ {bet}.. العب بذكاء!"
+        return bot.reply_to(
+            message,
+            f"💸 رصيدك الحالي: {user_gold}\n"
+            "❌ لا تملك ذهباً كافياً"
         )
-        return bot.reply_to(message, text_poor)
 
-    # 3. واجهة تدوير العجلة
-    text_start = (
+    # ───────── 2. واجهة اللعب ─────────
+    start_text = (
         "┏━━━━━━━ ● ━━━━━━━┓\n"
-        "         ⌯ روليت ملكي ⌯\n"
+        "      🎰 روليت الإمبراطورية 🎰\n"
         "┗━━━━━━━ ● ━━━━━━━┛\n\n"
-        f"💰 الرهان على : [ {bet} ] ذهبة\n"
-        "🌀 جاري تدوير عجلة القدر..."
+        f"💰 الرهان: {bet} ذهبة\n"
+        "🌀 تدوير عجلة القدر..."
     )
-    status_msg = bot.reply_to(message, text_start)
+    status_msg = bot.reply_to(message, start_text)
 
-    # 4. تشويق تدريجي
     time.sleep(1.5)
-    bot.edit_message_text(f"{text_start}\n\n⚡️ العجلة بدأت تتباطأ وتتوقف...", chat_id=message.chat.id, message_id=status_msg.message_id)
+    bot.edit_message_text(
+        start_text + "\n\n⚡️ العجلة تتباطأ...",
+        chat_id=message.chat.id,
+        message_id=status_msg.message_id
+    )
     time.sleep(1.5)
 
-    # 5. تحديد النتيجة
+    # ───────── 3. تحديد النتيجة ─────────
     outcome = random.choices(
-        ["win", "lose", "jackpot"], 
-        weights=[45, 50, 5],  # 5% فرصة جاكبوت، 45% فوز، 50% خسارة
+        ["win", "lose", "jackpot"],
+        weights=[45, 50, 5],
         k=1
     )[0]
 
+    mission_completed_now = False
+
+    # ───────── 4. النتائج ─────────
     if outcome == "win":
         db_manager.update_user_gold(uid, bet)
         new_bal = user_gold + bet
+
+        mission_completed_now = db_manager.complete_mission(uid, MISSION_KEY)
+
         result_text = (
-            "┏━━━━━━━ ● ━━━━━━━┓\n"
-            "         ⌯ فوز ساحق ⌯\n"
-            "┗━━━━━━━ ● ━━━━━━━┛\n\n"
-            f"👑 الإمبراطور : {message.from_user.first_name}\n"
-            "🟢 النتيجة : فوز مبارك!\n"
-            f"💰 الأرباح : +{bet} ذهبة\n"
-            f"✨ رصيدك الآن : {new_bal} ذهبة"
+            "🟢 فوز!\n"
+            f"💰 +{bet} ذهبة\n"
+            f"✨ رصيدك الآن: {new_bal}"
         )
 
     elif outcome == "jackpot":
         jackpot = bet * 5
         db_manager.update_user_gold(uid, jackpot)
         new_bal = user_gold + jackpot
+
+        mission_completed_now = db_manager.complete_mission(uid, MISSION_KEY)
+
         result_text = (
-            "┏━━━━━━━ ● ━━━━━━━┓\n"
-            "         ⌯ جاكبوت الملك ⌯\n"
-            "┗━━━━━━━ ● ━━━━━━━┛\n\n"
-            f"👑 الإمبراطور : {message.from_user.first_name}\n"
-            "💥 النتيجة : جاكبوت مذهل!\n"
-            f"💰 الأرباح : +{jackpot} ذهبة\n"
-            f"✨ رصيدك الآن : {new_bal} ذهبة"
+            "💥 جاكبوت أسطوري!\n"
+            f"💰 +{jackpot} ذهبة\n"
+            f"✨ رصيدك الآن: {new_bal}"
         )
+
     else:
         db_manager.update_user_gold(uid, -bet)
         new_bal = user_gold - bet
+
         result_text = (
-            "┏━━━━━━━ ● ━━━━━━━┓\n"
-            "         ⌯ خسارة ساحقه ⌯\n"
-            "┗━━━━━━━ ● ━━━━━━━┛\n\n"
-            f"👑 الإمبراطور : {message.from_user.first_name}\n"
-            "🔴 النتيجة : غدرت بك العجلة!\n"
-            f"💸 الخسارة : -{bet} ذهبة\n"
-            f"✨ المتبقي لك : {new_bal} ذهبة"
+            "🔴 خسارة!\n"
+            f"💸 -{bet} ذهبة\n"
+            f"💔 رصيدك الآن: {new_bal}"
         )
 
-    bot.edit_message_text(result_text, chat_id=message.chat.id, message_id=status_msg.message_id)
+    bot.edit_message_text(
+        result_text,
+        chat_id=message.chat.id,
+        message_id=status_msg.message_id
+    )
+
+    # ───────── 5. مكافأة إكمال المهمة ─────────
+    if mission_completed_now:
+        db_manager.add_item_to_inventory(uid, REWARD_ITEM, 1)
+
+        bot.send_message(
+            message.chat.id,
+            "✅ تم إكمال المهمة بنجاح!\n\n"
+            "🎁 تم إرسال صندوق الحظ إلى مخزونك\n"
+            "📦 اكتب «مخزوني» لعرض المخزون"
+        )

@@ -1,73 +1,61 @@
-# ملف: cmd_users_admin.py
 import db_manager
 
-COMMANDS = ["ادارة_المستخدمين", "المستخدمين", "users_admin"]
-
-DEV_ID = 5860391324  # ايديك كمطور
+COMMANDS = ["ادارة_المستخدمين", "المستخدمين"]
 
 def handle(bot, message):
-    if message.from_user.id != DEV_ID:
-        return
-
     if message.text not in COMMANDS:
         return
 
-    dev_name = message.from_user.first_name
-    dev_tag = f"@{message.from_user.username}" if message.from_user.username else dev_name
+    if message.from_user.id != 5860391324:
+        bot.reply_to(message, "❌ هذا الأمر للمطور فقط")
+        return
 
-    users = list(db_manager.users.find())
-    total_users = len(users)
+    users = list(db_manager.users.find({}))
+    total = len(users)
 
-    banned_users = []
-    normal_users = []
+    banned = []
+    active = []
 
     for user in users:
-        uid = user["uid"]
+        uid = user.get("uid")
         gold = user.get("gold", 0)
         bank = user.get("bank", 0)
-        banned = user.get("banned", False)
-        username = user.get("username")
-        first_name = user.get("first_name", "مستخدم")
+        is_banned = user.get("banned", False)
 
-        tag = f"@{username}" if username else first_name
+        try:
+            chat = bot.get_chat(uid)
+            name = chat.first_name or "بدون اسم"
+        except:
+            name = "غير معروف"
 
-        user_line = (
-            f"- {tag}\n"
-            f"  ID: {uid}\n"
-            f"  💰 ذهب: {gold}\n"
-            f"  🏦 بنك: {bank}\n"
-        )
+        info = f"- {name} | ID: {uid} | 💰 {gold} | 🏦 {bank}"
 
-        if banned:
-            banned_users.append(user_line)
+        if is_banned:
+            banned.append(info + " | 🚫 محظور")
         else:
-            normal_users.append(user_line)
+            active.append(info)
 
-    text = ""
-    text += "╔═════════════════╗\n"
-    text += f"  أهلاً بك يا : {dev_tag}\n"
-    text += "  في إدارة المستخدمين\n"
-    text += "╚═════════════════╝\n\n"
+    text = (
+        "╔═════════════════╗\n"
+        f"  أهلاً بك يا {message.from_user.first_name} في إدارة المستخدمين\n"
+        "╚═════════════════╝\n\n"
+        "━━━━━━━━━━━━━━━\n"
+        f"👥 عدد المستخدمين الكلي: {total}\n"
+        "━━━━━━━━━━━━━━━\n\n"
+        "🚫 المحظورين:\n"
+    )
 
-    text += "━━━━━━━━━━━━━━━\n"
-    text += f"👥 عدد المستخدمين الكلي : {total_users}\n"
-    text += "━━━━━━━━━━━━━━━\n\n"
-
-    text += "🚫 الاشخاص المحظورين :\n"
-    text += "━━━━━━━━━━━━━━━\n"
-    if banned_users:
-        for u in banned_users:
-            text += u + "\n"
+    if banned:
+        text += "\n".join(banned)
     else:
-        text += "- لا يوجد مستخدمين محظورين\n\n"
+        text += "— لا يوجد —"
 
-    text += "━━━━━━━━━━━━━━━\n"
-    text += "✅ الاشخاص غير المحظورين :\n"
-    text += "━━━━━━━━━━━━━━━\n"
-    if normal_users:
-        for u in normal_users:
-            text += u + "\n"
+    text += "\n\n━━━━━━━━━━━━━━━\n\n"
+    text += "✅ غير المحظورين:\n"
+
+    if active:
+        text += "\n".join(active)
     else:
-        text += "- لا يوجد مستخدمين\n"
+        text += "— لا يوجد —"
 
-    bot.reply_to(message, text)
+    bot.send_message(message.chat.id, text)

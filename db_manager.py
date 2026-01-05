@@ -20,7 +20,7 @@ except ConnectionFailure:
 # دوال مساعدة
 # ======================
 def _get_user(uid: int, username: str = None, first_name: str = None):
-    """يرجع معلومات المستخدم ويحدث الاسم واليوزرنيم إذا تغيّر"""
+    """يرجع معلومات المستخدم ويحدّث الاسم واليوزرنيم إذا تغيّر"""
     user = users.find_one({"uid": uid})
     if not user:
         user = {
@@ -33,7 +33,10 @@ def _get_user(uid: int, username: str = None, first_name: str = None):
             "last_gift": 0,
             "banned": False,
             "total_messages": 0,
-            "daily_usage": 0
+            "daily_usage": 0,
+            "daily_task": "",
+            "box_ready": False,
+            "box_opened": False
         }
         users.insert_one(user)
     else:
@@ -44,7 +47,7 @@ def _get_user(uid: int, username: str = None, first_name: str = None):
             update["first_name"] = first_name
         if update:
             users.update_one({"uid": uid}, {"$set": update})
-    return user
+    return users.find_one({"uid": uid})
 
 # ======================
 # الذهب
@@ -68,20 +71,14 @@ def deposit_to_bank(uid: int, amount: int) -> bool:
     user = _get_user(uid)
     if amount <= 0 or user["gold"] < amount:
         return False
-    users.update_one(
-        {"uid": uid},
-        {"$inc": {"gold": -amount, "bank": amount}}
-    )
+    users.update_one({"uid": uid}, {"$inc": {"gold": -amount, "bank": amount}})
     return True
 
 def withdraw_from_bank(uid: int, amount: int) -> bool:
     user = _get_user(uid)
     if amount <= 0 or user["bank"] < amount:
         return False
-    users.update_one(
-        {"uid": uid},
-        {"$inc": {"bank": -amount, "gold": amount}}
-    )
+    users.update_one({"uid": uid}, {"$inc": {"bank": -amount, "gold": amount}})
     return True
 
 # ======================
@@ -154,7 +151,10 @@ def get_user_stats(uid: int) -> dict:
         "inventory": user.get("inventory", []),
         "total_messages": user.get("total_messages", 0),
         "daily_usage": user.get("daily_usage", 0),
-        "banned": user.get("banned", False)
+        "banned": user.get("banned", False),
+        "daily_task": user.get("daily_task", ""),
+        "box_ready": user.get("box_ready", False),
+        "box_opened": user.get("box_opened", False)
     }
 
 def get_all_users_count() -> int:

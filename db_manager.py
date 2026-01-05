@@ -117,3 +117,31 @@ def is_banned(uid: int) -> bool:
 
 def get_banned_users() -> list:
     return [u["uid"] for u in users_collection.find({"banned": True})]
+
+# ======================
+# دوال الحظر والعفو
+# ======================
+
+def ban_user(uid: int) -> None:
+    users_collection.update_one(
+        {"uid": uid},
+        {"$set": {"banned": True}},
+        upsert=True
+    )
+
+def unban_user(uid: int) -> None:
+    users_collection.update_one(
+        {"uid": uid},
+        {"$set": {"banned": False}},
+        upsert=True
+    )
+
+def is_user_banned(uid: int) -> bool:
+    user = users_collection.find_one({"uid": uid})
+    if not user:
+        return False
+    return user.get("banned", False)
+
+def get_banned_users() -> list:
+    banned = users_collection.find({"banned": True})
+    return [user["uid"] for user in banned]

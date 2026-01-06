@@ -1,10 +1,9 @@
 import random
 import time
 import db_manager
-from db_manager import get_daily_task, complete_mission, add_to_inventory
 
 COMMAND = "روليت"
-MISSION_TYPE = "play_roulette"       # نوع المهمة للروليت
+MISSION_TYPE = "roulette"       # نوع المهمة للروليت في db_manager
 REWARD_ITEM = "🎁 صندوق الحظ النادر"
 
 def handle(bot, message):
@@ -64,8 +63,7 @@ def handle(bot, message):
 
     # ───────── 4. النتائج ─────────
     if outcome == "win":
-        db_manager.update_user_gold(uid, bet)
-        new_bal = user_gold + bet
+        new_bal = db_manager.update_user_gold(uid, bet)
         result_text = (
             "┏━━━━━━━ ● ━━━━━━━┓\n"
             "         ⌯ فـوز إمـبـراطـوري ⌯\n"
@@ -77,8 +75,7 @@ def handle(bot, message):
 
     elif outcome == "jackpot":
         jackpot = bet * 5
-        db_manager.update_user_gold(uid, jackpot)
-        new_bal = user_gold + jackpot
+        new_bal = db_manager.update_user_gold(uid, jackpot)
         result_text = (
             "┏━━━━━━━ ● ━━━━━━━┓\n"
             "         ⌯ جاكبوت أسطوري ⌯\n"
@@ -89,8 +86,7 @@ def handle(bot, message):
         )
 
     else:
-        db_manager.update_user_gold(uid, -bet)
-        new_bal = user_gold - bet
+        new_bal = db_manager.update_user_gold(uid, -bet)
         result_text = (
             "┏━━━━━━━ ● ━━━━━━━┓\n"
             "         ⌯ خسارة ساحقة ⌯\n"
@@ -107,4 +103,11 @@ def handle(bot, message):
     )
 
     # ───────── 5. التحقق من المهمة اليومية ─────────
-    check_task_completion(bot, message, MISSION_TYPE)
+    mission_completed = db_manager.complete_mission(uid, MISSION_TYPE)
+    if mission_completed:
+        db_manager.add_to_inventory(uid, REWARD_ITEM)
+        bot.send_message(
+            message.chat.id,
+            "✅ تم إكمال المهمة اليومية!\n"
+            f"🎁 تم إضافة {REWARD_ITEM} إلى مخزونك"
+        )

@@ -1,7 +1,7 @@
 import random
 import time
 import db_manager
-from daily_mission import check_task_completion  # دالة التحقق من المهمة
+from db_manager import get_daily_task, complete_mission, add_to_inventory
 
 COMMAND = "روليت"
 MISSION_TYPE = "play_roulette"       # نوع المهمة للروليت

@@ -1,4 +1,5 @@
 import time
+import random
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 
@@ -50,16 +51,49 @@ def update_user_gold(uid, amount):
     return new_gold
 
 # ======================
-# المخزون
+# البنك
+# ======================
+def get_user_bank(uid):
+    return _get_user(uid)["bank"]
+
+def deposit_to_bank(uid, amount):
+    user = _get_user(uid)
+    if amount <= 0 or user["gold"] < amount:
+        return False
+    users.update_one({"uid": uid}, {"$inc": {"gold": -amount, "bank": amount}})
+    return True
+
+def withdraw_from_bank(uid, amount):
+    user = _get_user(uid)
+    if amount <= 0 or user["bank"] < amount:
+        return False
+    users.update_one({"uid": uid}, {"$inc": {"bank": -amount, "gold": amount}})
+    return True
+
+# ======================
+# المخزون / Inventory
 # ======================
 def get_inventory(uid):
     return _get_user(uid).get("inventory", [])
 
-def add_to_inventory(uid, item):
+def add_to_inventory(uid, item, quantity=1):
     user = _get_user(uid)
     inv = user.get("inventory", [])
-    inv.append(item)
+    inv.extend([item]*quantity)
     users.update_one({"uid": uid}, {"$set": {"inventory": inv}})
+
+def remove_from_inventory(uid, item, quantity=1):
+    user = _get_user(uid)
+    inv = user.get("inventory", [])
+    count = 0
+    new_inv = []
+    for i in inv:
+        if i == item and count < quantity:
+            count += 1
+            continue
+        new_inv.append(i)
+    users.update_one({"uid": uid}, {"$set": {"inventory": new_inv}})
+    return count == quantity
 
 # ======================
 # المهام اليومية
@@ -84,43 +118,32 @@ def time_left_for_task(uid):
 
 def get_daily_task(uid):
     user = _get_user(uid)
-
     # لو عنده مهمة حالياً
     if user.get("daily_task"):
         return user["daily_task"]
-
     # لو ما يقدر ياخذ مهمة جديدة
     if not can_get_task(uid):
         return None
-
     task = random.choice(TASKS)
     users.update_one(
         {"uid": uid},
-        {
-            "$set": {
-                "daily_task": task,
-                "last_task_time": time.time(),
-                "box_ready": False,
-                "box_opened": False
-            }
-        }
+        {"$set": {
+            "daily_task": task,
+            "last_task_time": time.time(),
+            "box_ready": False,
+            "box_opened": False
+        }}
     )
     return task
 
 def complete_mission(uid, mission_type):
     user = _get_user(uid)
     task = user.get("daily_task")
-
     if not task:
         return False
-
     if task["type"] != mission_type:
         return False
-
-    users.update_one(
-        {"uid": uid},
-        {"$set": {"box_ready": True, "daily_task": None}}
-    )
+    users.update_one({"uid": uid}, {"$set": {"box_ready": True, "daily_task": None}})
     return True
 
 def can_open_box(uid):
@@ -129,3 +152,21 @@ def can_open_box(uid):
 
 def set_box_opened(uid):
     users.update_one({"uid": uid}, {"$set": {"box_opened": True}})
+
+# ======================
+# الهدايا اليومية
+# ======================
+def take_gift(uid, amount=100):
+    user = _get_user(uid)
+    last = user.get("last_gift_time", 0)
+    if time.time() - last < DAY:
+        return None
+    update_user_gold(uid, amount)
+    users.update_one({"uid": uid}, {"$set": {"last_gift_time": time.time()}})
+    return get_user_gold(uid)
+
+# ======================
+# إحصائيات المستخدمين
+# ======================
+def get_all_users_count():
+    return users.count_documents({})

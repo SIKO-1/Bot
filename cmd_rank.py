@@ -20,7 +20,7 @@ RANKS = [
     {"level": 14, "name": "المهيمن", "price": 1400*5},
     {"level": 15, "name": "القيصر", "price": 1500*5},
     {"level": 16, "name": "الملك", "price": 1600*5},
-    {"level": 17, "name": "الإمبراطور", "price": 1700*5},
+    {"level": 17, "name": "الإمبراطور", "price": 1700*5},  # فقط هذا يستطيع ترقية الآخرين
     {"level": 18, "name": "الناصر", "price": 1800*5},
     {"level": 19, "name": "العظيم", "price": 1900*5},
     {"level": 20, "name": "السامي", "price": 2000*5},
@@ -28,7 +28,7 @@ RANKS = [
     {"level": 22, "name": "المرموق", "price": 2200*5},
     {"level": 23, "name": "الخارق", "price": 2300*5},
     {"level": 24, "name": "الأسطورة", "price": 2400*5},
-    {"level": 25, "name": "الإمبراطور الأعلى", "price": 0},  # لا يمكن شراؤها
+    {"level": 25, "name": "الإمبراطور الأعلى", "price": 0},  # لا يمكن شراءها
 ]
 
 SPECIAL_DEV_RANK = {"level": 100, "name": "المطور", "price": 0}
@@ -75,16 +75,18 @@ def buy_rank(uid, target_level):
     return True, f"✅ تم ترقيتك إلى رتبة {rank['name']}"
 
 def upgrade_by_emperor(emperor_uid, target_uid, target_level):
-    if get_rank(emperor_uid) != 17:
+    if get_rank(emperor_uid) != 17:  # رتبة الإمبراطور
         return False, "🚫 فقط الإمبراطور يمكنه استخدام أمر الترقية"
     rank = get_rank_info(target_level)
     set_rank(target_uid, target_level)
     return True, f"✅ تم ترقية المستخدم إلى رتبة {rank['name']} بواسطة الإمبراطور"
 
 # ======================
-# أوامر البوت
+# موديول البوت
 # ======================
-def handle_command(bot, message):
+COMMANDS = ["رتب", "رتبتي"]
+
+def handle(bot, message):
     text = message.text.strip()
     uid = message.from_user.id
 
@@ -92,10 +94,7 @@ def handle_command(bot, message):
     if text == "رتب":
         lines = ["🏆 قائمة الرتب:"]
         for r in RANKS:
-            if r["price"] == 0:
-                price_text = "— لا يمكن الشراء —"
-            else:
-                price_text = f"{r['price']} ذهب"
+            price_text = f"{r['price']} ذهب" if r['price'] > 0 else "— لا يمكن الشراء —"
             lines.append(f"{r['level']}- {r['name']} : {price_text}")
         bot.reply_to(message, "\n".join(lines))
         return
@@ -107,7 +106,7 @@ def handle_command(bot, message):
         bot.reply_to(message, f"🎖 رتبتك الحالية: {rank['name']} (مستوى {rank['level']})")
         return
 
-    # شراء رتبة
+    # شراء رتبة خطوة بخطوة
     if text.startswith("رتبة "):
         try:
             target_level = int(text.split()[1])
@@ -125,7 +124,11 @@ def handle_command(bot, message):
             bot.reply_to(message, "💡 مثال: ترقية @username 5 أو ترقية 123456789 5")
             return
         target = parts[1]
-        target_level = int(parts[2])
+        try:
+            target_level = int(parts[2])
+        except:
+            bot.reply_to(message, "🚫 رقم الرتبة غير صالح")
+            return
 
         # تحويل اسم المستخدم إلى UID إذا كان باليوزرنيم
         try:

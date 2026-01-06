@@ -27,37 +27,31 @@ def _get_user(uid: int):
     if not user:
         user = {
             "uid": uid,
-            "name": None,
-            "username": None,
             "gold": 0,
             "bank": 0,
             "inventory": [],
-            "total_messages": 0,
             "last_task_time": 0,
             "daily_task": None,
             "box_ready": False,
             "box_opened": False,
             "last_gift_time": 0,
-            "banned": False
+            "banned": False,
+            "name": None,
+            "username": None,
+            "total_messages": 0
         }
         users.insert_one(user)
     return users.find_one({"uid": uid})
 
 # ======================
-# التحقق من الحظر
-# ======================
-def is_user_banned(uid):
-    return _get_user(uid).get("banned", False)
-
-# ======================
 # الذهب
 # ======================
 def get_user_gold(uid):
-    return _get_user(uid).get("gold", 0)
+    return _get_user(uid)["gold"]
 
 def update_user_gold(uid, amount):
     user = _get_user(uid)
-    new_gold = max(0, user.get("gold", 0) + amount)
+    new_gold = max(0, user["gold"] + amount)
     users.update_one({"uid": uid}, {"$set": {"gold": new_gold}})
     return new_gold
 
@@ -65,18 +59,18 @@ def update_user_gold(uid, amount):
 # البنك
 # ======================
 def get_user_bank(uid):
-    return _get_user(uid).get("bank", 0)
+    return _get_user(uid)["bank"]
 
 def deposit_to_bank(uid, amount):
     user = _get_user(uid)
-    if amount <= 0 or user.get("gold", 0) < amount:
+    if amount <= 0 or user["gold"] < amount:
         return False
     users.update_one({"uid": uid}, {"$inc": {"gold": -amount, "bank": amount}})
     return True
 
 def withdraw_from_bank(uid, amount):
     user = _get_user(uid)
-    if amount <= 0 or user.get("bank", 0) < amount:
+    if amount <= 0 or user["bank"] < amount:
         return False
     users.update_one({"uid": uid}, {"$inc": {"bank": -amount, "gold": amount}})
     return True
@@ -148,7 +142,9 @@ def get_daily_task(uid):
 def complete_mission(uid, mission_type):
     user = _get_user(uid)
     task = user.get("daily_task")
-    if not task or task.get("type") != mission_type:
+    if not task:
+        return False
+    if task["type"] != mission_type:
         return False
     users.update_one({"uid": uid}, {"$set": {"box_ready": True, "daily_task": None}})
     return True
@@ -171,6 +167,23 @@ def take_gift(uid, amount=100):
     update_user_gold(uid, amount)
     users.update_one({"uid": uid}, {"$set": {"last_gift_time": time.time()}})
     return get_user_gold(uid)
+
+def can_take_gift(uid):
+    user = _get_user(uid)
+    return time.time() - user.get("last_gift_time", 0) >= DAY
+
+# ======================
+# فحص الحظر
+# ======================
+def is_user_banned(uid):
+    user = _get_user(uid)
+    return user.get("banned", False)
+
+def ban_user(uid):
+    users.update_one({"uid": uid}, {"$set": {"banned": True}})
+
+def unban_user(uid):
+    users.update_one({"uid": uid}, {"$set": {"banned": False}})
 
 # ======================
 # إحصائيات المستخدمين

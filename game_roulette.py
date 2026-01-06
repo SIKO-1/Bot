@@ -1,12 +1,14 @@
 import random
 import time
-import db_manager  # الربط مع الخزنة والمهام والمخزون
+import db_manager
+from daily_mission import check_task_completion  # دالة التحقق من المهمة
 
-MISSION_KEY = "roulette_win"  # مفتاح مهمة الروليت
-REWARD_ITEM = "🎁 صندوق الحظ"
+COMMAND = "روليت"
+MISSION_TYPE = "play_roulette"       # نوع المهمة للروليت
+REWARD_ITEM = "🎁 صندوق الحظ النادر"
 
 def handle(bot, message):
-    if not message.text.startswith("روليت"):
+    if not message.text.startswith(COMMAND):
         return
 
     uid = message.from_user.id
@@ -32,7 +34,7 @@ def handle(bot, message):
     if bet > user_gold:
         return bot.reply_to(
             message,
-            f"💸 رصيدك الحالي: {user_gold}\n"
+            f"💸 رصيدك الحالي: {user_gold} ذهب\n"
             "❌ لا تملك ذهباً كافياً"
         )
 
@@ -45,7 +47,6 @@ def handle(bot, message):
         "🌀 تدوير عجلة القدر..."
     )
     status_msg = bot.reply_to(message, start_text)
-
     time.sleep(1.5)
     bot.edit_message_text(
         start_text + "\n\n⚡️ العجلة تتباطأ...",
@@ -61,42 +62,42 @@ def handle(bot, message):
         k=1
     )[0]
 
-    mission_completed_now = False
-
     # ───────── 4. النتائج ─────────
     if outcome == "win":
         db_manager.update_user_gold(uid, bet)
         new_bal = user_gold + bet
-
-        mission_completed_now = db_manager.complete_mission(uid, MISSION_KEY)
-
         result_text = (
-            "🟢 فوز!\n"
-            f"💰 +{bet} ذهبة\n"
-            f"✨ رصيدك الآن: {new_bal}"
+            "┏━━━━━━━ ● ━━━━━━━┓\n"
+            "         ⌯ فـوز إمـبـراطـوري ⌯\n"
+            "┗━━━━━━━ ● ━━━━━━━┛\n\n"
+            f"🔥 الحظ يبتسم لك : [ الفوز ]\n"
+            f"💰 الجائزة : +{bet} ذهب\n"
+            f"✨ رصيدك الحالي : {new_bal} ذهب"
         )
 
     elif outcome == "jackpot":
         jackpot = bet * 5
         db_manager.update_user_gold(uid, jackpot)
         new_bal = user_gold + jackpot
-
-        mission_completed_now = db_manager.complete_mission(uid, MISSION_KEY)
-
         result_text = (
-            "💥 جاكبوت أسطوري!\n"
-            f"💰 +{jackpot} ذهبة\n"
-            f"✨ رصيدك الآن: {new_bal}"
+            "┏━━━━━━━ ● ━━━━━━━┓\n"
+            "         ⌯ جاكبوت أسطوري ⌯\n"
+            "┗━━━━━━━ ● ━━━━━━━┛\n\n"
+            f"🔥 الحظ يبتسم لك : [ الجاكبوت ]\n"
+            f"💰 الجائزة : +{jackpot} ذهب\n"
+            f"✨ رصيدك الحالي : {new_bal} ذهب"
         )
 
     else:
         db_manager.update_user_gold(uid, -bet)
         new_bal = user_gold - bet
-
         result_text = (
-            "🔴 خسارة!\n"
-            f"💸 -{bet} ذهبة\n"
-            f"💔 رصيدك الآن: {new_bal}"
+            "┏━━━━━━━ ● ━━━━━━━┓\n"
+            "         ⌯ خسارة ساحقة ⌯\n"
+            "┗━━━━━━━ ● ━━━━━━━┛\n\n"
+            f"💀 الحظ : [ الخسارة ]\n"
+            f"💸 خسارتك : -{bet} ذهب\n"
+            f"✨ رصيدك الحالي : {new_bal} ذهب"
         )
 
     bot.edit_message_text(
@@ -105,13 +106,5 @@ def handle(bot, message):
         message_id=status_msg.message_id
     )
 
-    # ───────── 5. مكافأة إكمال المهمة ─────────
-    if mission_completed_now:
-        db_manager.add_item_to_inventory(uid, REWARD_ITEM, 1)
-
-        bot.send_message(
-            message.chat.id,
-            "✅ تم إكمال المهمة بنجاح!\n\n"
-            "🎁 تم إرسال صندوق الحظ إلى مخزونك\n"
-            "📦 اكتب «مخزوني» لعرض المخزون"
-        )
+    # ───────── 5. التحقق من المهمة اليومية ─────────
+    check_task_completion(bot, message, MISSION_TYPE)

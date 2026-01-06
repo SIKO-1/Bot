@@ -13,8 +13,8 @@ def handle(bot, message):
     uid = message.from_user.id
     inventory = db_manager.get_inventory(uid)
 
-    # البداية
-    start_msg = bot.reply_to(
+    # البداية: رسالة ترحيب مؤقتة
+    bot.reply_to(
         message,
         "🎲 جاري رمي نرد الإمبراطورية...\n"
         "⚔️ ركّز، فالحظ لا يبتسم مرتين."
@@ -28,9 +28,11 @@ def handle(bot, message):
         bot.reply_to(message, "❌ فشل في رمي النرد، حاول مرة أخرى")
         return
 
-    time.sleep(3.5)
+    time.sleep(3.5)  # تأثير درامي
 
-    # النتائج
+    # =========================
+    # حساب الجائزة / العقوبة
+    # =========================
     if value >= 5:
         prize = 200
         if "سيف الإمبراطور" in inventory: prize = int(prize * 1.2)
@@ -73,14 +75,18 @@ def handle(bot, message):
             "         ⌯ خسارة ساحقة ⌯\n"
             "┗━━━━━━━ ● ━━━━━━━┛\n\n"
             f"💀 الحظ : [ {value} ]\n"
-            f"💸 خسارتك : {penalty} ذهب\n"
+            f"💸 خسارتك : {abs(penalty)} ذهب\n"
             f"✨ رصيدك الحالي : {new_gold} ذهب"
         )
 
-    # إرسال النتيجة
-    bot.edit_message_text(result_text, chat_id=message.chat.id, message_id=dice_msg.message_id)
+    # =========================
+    # إرسال النتيجة النهائية
+    # =========================
+    bot.send_message(message.chat.id, result_text)
 
-    # ======= تحقق من المهمة اليومية =======
+    # =========================
+    # تحقق من المهمة اليومية
+    # =========================
     mission_completed = db_manager.complete_mission(uid, MISSION_TYPE)
     if mission_completed:
         db_manager.add_to_inventory(uid, REWARD_ITEM)
@@ -88,4 +94,4 @@ def handle(bot, message):
             message.chat.id,
             "✅ تم إكمال المهمة اليومية!\n"
             f"🎁 تم إضافة {REWARD_ITEM} إلى مخزونك"
-    )
+        )

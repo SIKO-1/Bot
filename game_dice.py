@@ -3,7 +3,7 @@ import random
 import db_manager
 
 COMMAND = "نرد"
-MISSION_TYPE = "play_dice"       # نوع المهمة للنرد
+MISSION_TYPE = "dice"       # نوع المهمة للنرد في db_manager
 REWARD_ITEM = "🎁 صندوق الحظ النادر"
 
 def handle(bot, message):
@@ -21,8 +21,13 @@ def handle(bot, message):
     )
 
     # إرسال نرد Telegram
-    dice_msg = bot.send_dice(message.chat.id)
-    value = dice_msg.dice.value
+    try:
+        dice_msg = bot.send_dice(message.chat.id)
+        value = dice_msg.dice.value
+    except Exception:
+        bot.reply_to(message, "❌ فشل في رمي النرد، حاول مرة أخرى")
+        return
+
     time.sleep(3.5)
 
     # النتائج
@@ -75,6 +80,12 @@ def handle(bot, message):
     # إرسال النتيجة
     bot.edit_message_text(result_text, chat_id=message.chat.id, message_id=dice_msg.message_id)
 
-    # ======= تحقق من المهمة =======
-    from daily_mission import check_task_completion
-    check_task_completion(bot, message, MISSION_TYPE)
+    # ======= تحقق من المهمة اليومية =======
+    mission_completed = db_manager.complete_mission(uid, MISSION_TYPE)
+    if mission_completed:
+        db_manager.add_to_inventory(uid, REWARD_ITEM)
+        bot.send_message(
+            message.chat.id,
+            "✅ تم إكمال المهمة اليومية!\n"
+            f"🎁 تم إضافة {REWARD_ITEM} إلى مخزونك"
+    )

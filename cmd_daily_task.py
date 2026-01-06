@@ -1,34 +1,11 @@
-import time
 import random
 import db_manager
 
 COMMANDS = ["مهمتي"]
 
 # ======================
-# إعداد المهمات المتاحة
+# أمر: مهمتي
 # ======================
-DAILY_TASKS = [
-    {"desc": "العب لعبة النرد 🎲", "type": "play_dice"},
-    {"desc": "العب لعبة الروليت 🎰", "type": "play_roulette"},
-]
-
-DAY_SECONDS = 86400  # 24 ساعة
-
-
-def get_remaining_time(uid):
-    user = db_manager._get_user(uid)
-    last = user.get("task_taken_at", 0)
-    now = time.time()
-
-    remaining = DAY_SECONDS - (now - last)
-    if remaining <= 0:
-        return 0, 0
-
-    hours = int(remaining // 3600)
-    minutes = int((remaining % 3600) // 60)
-    return hours, minutes
-
-
 def handle(bot, message):
     uid = message.from_user.id
     text = message.text.strip()
@@ -36,72 +13,54 @@ def handle(bot, message):
     if text != "مهمتي":
         return
 
-    user = db_manager._get_user(uid)
-    task = user.get("daily_task", {})
-    taken_at = user.get("task_taken_at", 0)
+    task = db_manager.get_daily_task(uid)
 
-    # ===== إذا عنده مهمة حالياً =====
-    if task:
-        bot.reply_to(
-            message,
-            f"🎯 مهمتك لليوم:\n"
-            f"{task.get('desc', '—')}\n\n"
-            "بعد إتمامها ستحصل على صندوق الحظ النادر 🎁"
-        )
-        return
-
-    # ===== تحقق من 24 ساعة =====
-    if taken_at:
-        hours, minutes = get_remaining_time(uid)
-        if hours > 0 or minutes > 0:
+    # ===== لا توجد مهمة + لم يحن الوقت =====
+    if task is None:
+        remaining = db_manager.time_left_for_task(uid)
+        if remaining:
             bot.reply_to(
                 message,
                 "⏳ لا يمكنك أخذ مهمة الآن\n\n"
-                f"🕒 الوقت المتبقي:\n"
-                f"• {hours} ساعة\n"
-                f"• {minutes} دقيقة\n\n"
-                "اصبر… الجائزة تستاهل 🎁"
+                f"🕒 الوقت المتبقي:\n{remaining}\n\n"
+                "اصبر… صندوق الحظ يحب الصابرين 🎁"
             )
-            return
+        else:
+            bot.reply_to(message, "❌ لا توجد مهمة حالياً.")
+        return
 
-    # ===== إعطاء مهمة جديدة =====
-    new_task = random.choice(DAILY_TASKS)
-    db_manager.set_daily_task(uid, new_task)
-
-    db_manager.users.update_one(
-        {"uid": uid},
-        {"$set": {"task_taken_at": time.time()}}
-    )
-
+    # ===== عرض المهمة الحالية =====
     bot.reply_to(
         message,
-        f"📝 مهمتك اليومية:\n"
-        f"{new_task['desc']}\n\n"
-        "✨ عند إتمامها سيتم إرسال صندوق الحظ تلقائياً إلى مخزونك!"
+        f"🎯 مهمتك لليوم:\n"
+        f"{task['desc']}\n\n"
+        "✨ بعد إتمامها ستحصل على صندوق الحظ النادر 🎁"
     )
 
 
 # ======================
-# هذه تُستدعى من الألعاب
+# تُستدعى من الألعاب
 # ======================
-def check_task_completion(bot, message, task_type):
+def check_task_completion(bot, message, mission_type):
+    """
+    mission_type:
+    - dice
+    - roulette
+    - أي لعبة مستقبلية
+    """
+
     uid = message.from_user.id
-    user = db_manager._get_user(uid)
-    task = user.get("daily_task")
 
-    if not task:
+    completed = db_manager.complete_mission(uid, mission_type)
+
+    if not completed:
         return
 
-    if task.get("type") != task_type:
-        return
-
-    # إكمال المهمة
-    db_manager.complete_daily_task(uid)
     db_manager.add_to_inventory(uid, "🎁 صندوق الحظ النادر")
 
     bot.send_message(
         message.chat.id,
-        "✅ تم إكمال مهمتك اليومية!\n\n"
+        "✅ تم إكمال مهمتك اليومية بنجاح!\n\n"
         "🎁 تم إرسال صندوق الحظ النادر إلى مخزونك\n"
-        "📦 اكتب: مخزوني لعرض المخزون"
+        "📦 اكتب: مخزوني لعرضه"
     )

@@ -17,7 +17,7 @@ try:
 except ConnectionFailure:
     print("❌ فشل الاتصال بـ MongoDB")
 
-DAY = 86400  # 24 ساعة بالثواني
+DAY = 86400  # 24 ساعة
 
 # ======================
 # جلب / إنشاء مستخدم
@@ -30,6 +30,7 @@ def _get_user(uid: int):
             "gold": 0,
             "bank": 0,
             "inventory": [],
+            "rank": 0,              # ✅ الرتبة
             "last_task_time": 0,
             "daily_task": None,
             "box_ready": False,
@@ -76,7 +77,7 @@ def withdraw_from_bank(uid, amount):
     return True
 
 # ======================
-# المخزون / Inventory
+# المخزون
 # ======================
 def get_inventory(uid):
     return _get_user(uid).get("inventory", [])
@@ -84,7 +85,7 @@ def get_inventory(uid):
 def add_to_inventory(uid, item, quantity=1):
     user = _get_user(uid)
     inv = user.get("inventory", [])
-    inv.extend([item]*quantity)
+    inv.extend([item] * quantity)
     users.update_one({"uid": uid}, {"$set": {"inventory": inv}})
 
 def remove_from_inventory(uid, item, quantity=1):
@@ -99,6 +100,15 @@ def remove_from_inventory(uid, item, quantity=1):
         new_inv.append(i)
     users.update_one({"uid": uid}, {"$set": {"inventory": new_inv}})
     return count == quantity
+
+# ======================
+# الرتب ✅
+# ======================
+def get_user_rank(uid):
+    return _get_user(uid).get("rank", 0)
+
+def set_user_rank(uid, rank):
+    users.update_one({"uid": uid}, {"$set": {"rank": rank}})
 
 # ======================
 # المهام اليومية
@@ -173,11 +183,10 @@ def can_take_gift(uid):
     return time.time() - user.get("last_gift_time", 0) >= DAY
 
 # ======================
-# فحص الحظر
+# الحظر
 # ======================
 def is_user_banned(uid):
-    user = _get_user(uid)
-    return user.get("banned", False)
+    return _get_user(uid).get("banned", False)
 
 def ban_user(uid):
     users.update_one({"uid": uid}, {"$set": {"banned": True}})
@@ -186,7 +195,7 @@ def unban_user(uid):
     users.update_one({"uid": uid}, {"$set": {"banned": False}})
 
 # ======================
-# إحصائيات المستخدمين
+# إحصائيات
 # ======================
 def get_all_users_count():
     return users.count_documents({})

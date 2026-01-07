@@ -20,6 +20,13 @@ except ConnectionFailure:
 DAY = 86400  # 24 ساعة
 
 # ======================
+# المطورين (يحق لهم التخفيض فقط)
+# ======================
+DEVELOPERS = [
+    5860391324,  # ← حط ID المطور
+]
+
+# ======================
 # جلب / إنشاء مستخدم
 # ======================
 def _get_user(uid: int):
@@ -30,7 +37,7 @@ def _get_user(uid: int):
             "gold": 0,
             "bank": 0,
             "inventory": [],
-            "rank": 0,              # ✅ الرتبة
+            "rank": 0,
             "last_task_time": 0,
             "daily_task": None,
             "box_ready": False,
@@ -102,13 +109,46 @@ def remove_from_inventory(uid, item, quantity=1):
     return count == quantity
 
 # ======================
-# الرتب ✅
+# الرتب
 # ======================
 def get_user_rank(uid):
     return _get_user(uid).get("rank", 0)
 
 def set_user_rank(uid, rank):
     users.update_one({"uid": uid}, {"$set": {"rank": rank}})
+
+# ======================
+# تخفيض الرتبة (للمطور فقط)
+# ======================
+def downgrade_user_rank(by_uid: int, target_uid: int, new_rank: int):
+    if by_uid not in DEVELOPERS:
+        return {
+            "ok": False,
+            "error": "❌ هذا الأمر للمطور فقط."
+        }
+
+    if new_rank < 0:
+        new_rank = 0
+
+    target = _get_user(target_uid)
+    old_rank = target.get("rank", 0)
+
+    if new_rank >= old_rank:
+        return {
+            "ok": False,
+            "error": "⚠️ لا يمكن التخفيض لنفس الرتبة أو أعلى."
+        }
+
+    users.update_one(
+        {"uid": target_uid},
+        {"$set": {"rank": new_rank}}
+    )
+
+    return {
+        "ok": True,
+        "old_rank": old_rank,
+        "new_rank": new_rank
+    }
 
 # ======================
 # المهام اليومية
@@ -152,9 +192,7 @@ def get_daily_task(uid):
 def complete_mission(uid, mission_type):
     user = _get_user(uid)
     task = user.get("daily_task")
-    if not task:
-        return False
-    if task["type"] != mission_type:
+    if not task or task["type"] != mission_type:
         return False
     users.update_one({"uid": uid}, {"$set": {"box_ready": True, "daily_task": None}})
     return True

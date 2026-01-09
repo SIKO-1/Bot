@@ -15,10 +15,10 @@ def handle(bot, message):
     text = message.text.strip()
     uid = message.from_user.id
 
-    if text.startswith("اضف_عيد"):
+    if text.startswith("اضف عيد"):
         parts = text.split()
         if len(parts) < 3:
-            bot.reply_to(message, "⚠️ صيغة الأمر خاطئة: اضف_عيد <ID المستخدم> <YYYY-MM-DD>")
+            bot.reply_to(message, "⚠️ صيغة الأمر خاطئة: اضف عيد <ID المستخدم> <YYYY-MM-DD>")
             return
         try:
             target_uid = int(parts[1])
@@ -28,7 +28,7 @@ def handle(bot, message):
         except Exception as e:
             bot.reply_to(message, f"❌ حدث خطأ: {e}")
 
-    elif text.startswith("مسح_عيد"):
+    elif text.startswith("مسح عيد"):
         parts = text.split()
         if len(parts) < 2:
             bot.reply_to(message, "⚠️ صيغة الأمر خاطئة: مسح_عيد <ID المستخدم>")
@@ -55,7 +55,7 @@ def handle(bot, message):
         except Exception as e:
             bot.reply_to(message, f"❌ حدث خطأ: {e}")
 
-    elif text.startswith("قائمه_اعياد"):
+    elif text.startswith("قائمه اعياد"):
         try:
             all_bds = db_manager.get_all_birthdays()
             if not all_bds:
@@ -72,6 +72,6 @@ def handle(bot, message):
         db_manager.enable_birthday(uid)
         bot.reply_to(message, "✅ تم تفعيل الرد التلقائي لعيد ميلادك")
 
-    elif text.startswith("تعطيل_عيد"):
+    elif text.startswith("تعطيل عيد"):
         db_manager.disable_birthday(uid)
         bot.reply_to(message, "✅ تم تعطيل الرد التلقائي لعيد ميلادك")

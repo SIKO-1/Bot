@@ -237,3 +237,48 @@ def unban_user(uid):
 # ======================
 def get_all_users_count():
     return users.count_documents({})
+
+# ======================
+# عيد الميلاد
+# ======================
+
+def add_birthday(uid: int, day: int, month: int, year: int = None):
+    if day < 1 or day > 31 or month < 1 or month > 12:
+        return {"ok": False, "error": "⚠️ التاريخ غير صالح."}
+    users.update_one(
+        {"uid": uid},
+        {"$set": {"birthday": {"day": day, "month": month, "year": year}}}
+    )
+    return {"ok": True, "uid": uid, "birthday": {"day": day, "month": month, "year": year}}
+
+def remove_birthday(uid: int):
+    users.update_one(
+        {"uid": uid},
+        {"$unset": {"birthday": ""}}
+    )
+    return {"ok": True, "uid": uid}
+
+def get_birthday(uid: int):
+    user = _get_user(uid)
+    return user.get("birthday", None)
+
+def list_birthdays():
+    result = []
+    for user in users.find({"birthday": {"$exists": True}}):
+        result.append({
+            "uid": user["uid"],
+            "birthday": user["birthday"]
+        })
+    return result
+
+def enable_birthday_auto(uid: int):
+    users.update_one({"uid": uid}, {"$set": {"birthday_auto": True}})
+    return {"ok": True, "uid": uid}
+
+def disable_birthday_auto(uid: int):
+    users.update_one({"uid": uid}, {"$set": {"birthday_auto": False}})
+    return {"ok": True, "uid": uid}
+
+def is_birthday_auto_enabled(uid: int):
+    user = _get_user(uid)
+    return user.get("birthday_auto", False)

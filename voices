@@ -1,8 +1,0 @@
-project/
- ├─ bot.py
- ├─ cmd_music.py
- └─ voices/
-      ├─ 1.ogg
-      ├─ 2.ogg
-      ├─ 3.ogg
-      └─ ... حتى 50.ogg

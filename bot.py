@@ -3,6 +3,7 @@ import telebot
 import importlib.util
 import traceback
 import db_manager
+import sys
 
 # ======================
 # الإعدادات
@@ -14,7 +15,7 @@ BOT_ENABLED = True  # متغير عالمي لتشغيل/إطفاء البوت
 if not TOKEN:
     raise RuntimeError("❌ BOT_TOKEN غير موجود")
 
-bot = telebot.TeleBot(TOKEN)  # بدون parse_mode لتجنب مشاكل HTML
+bot = telebot.TeleBot(TOKEN)
 
 cmd_modules = {}
 game_modules = {}
@@ -56,85 +57,50 @@ def load_modules():
             except:
                 pass
 
+# تحميل الموديولات أول مرة
+load_modules()
+
+# ======================
+# إعادة تحميل الموديولات (Restart)
+# ======================
+def restart_bot(chat_id=None):
+    try:
+        load_modules()
+        if chat_id:
+            bot.send_message(chat_id, "♻️ تم إعادة تشغيل النظام بنجاح!")
+    except Exception as e:
+        bot.send_message(DEV_ID, f"❌ خطأ أثناء إعادة التشغيل:\n{e}")
+
 # ======================
 # أمر start
 # ======================
 @bot.message_handler(commands=["start"])
 def start(message):
-    bot.reply_to(
-        message,
-        "🤖 البوت شغال\n"
-        "• كل الأوامر موجودة في cmd_*\n"
-        "• كل الألعاب موجودة في game_*\n"
-        "• اكتب: تحديث"
-    )
+    bot.send_message(message.chat.id, "👋 هلا، البوت شغال!")
 
 # ======================
-# أمر تحديث الموديولات
+# أمر رست
 # ======================
-@bot.message_handler(func=lambda m: m.text=="تحديث")
-def update_files(message):
+@bot.message_handler(commands=["رست"])
+def restart_cmd(message):
     if message.from_user.id != DEV_ID:
-        bot.reply_to(message,"❌ هذا الأمر للمطور فقط")
+        bot.reply_to(message, "❌ هذا الأمر للمطور فقط")
         return
-
-    load_modules()
-    report = "🔄 تم تحديث الموديولات\n\n"
-    report += "✅ CMD:\n" + ("\n".join(cmd_modules.keys()) or "— لا يوجد")
-    report += "\n\n🎮 GAME:\n" + ("\n".join(game_modules.keys()) or "— لا يوجد")
-    if module_errors:
-        report += "\n\n⚠️ أخطاء:\n"
-        for f, e in module_errors.items():
-            report += f"\n• {f}: {e}"
-
-    bot.send_message(message.chat.id, report)
+    restart_bot(message.chat.id)
 
 # ======================
-# تمرير الرسائل للموديولات
+# تفعيل أوامر cmd
 # ======================
-def dispatch_message(message):
-    global BOT_ENABLED
-    uid = message.from_user.id
-    text = message.text.strip() if message.text else ""
-
-    # ======= أوامر المطور لتشغيل/إطفاء البوت =======
-    if uid == DEV_ID:
-        if text == "اطفاء":
-            BOT_ENABLED = False
-            bot.reply_to(message, "🔴 تم إطفاء البوت بأمر الإمبراطور.")
-            return
-        if text == "تشغيل":
-            BOT_ENABLED = True
-            bot.reply_to(message, "🟢 عاد البوت للحياة بأمر الإمبراطور.")
-            return
-
-    if not BOT_ENABLED:
-        return
-
-    # ======= تمرير الرسالة للأوامر =======
+for module in list(cmd_modules.values()):
     try:
-        for module in cmd_modules.values():
-            module.handle(bot, message)
-        for module in game_modules.values():
-            module.handle(bot, message)
+        if hasattr(module, "register_marriage"):
+            module.register_marriage(bot)
+        else:
+            module.handle(bot, None)  # لو عنده handle عام
     except Exception as e:
-        traceback.print_exc()
-        try:
-            bot.send_message(DEV_ID, f"⚠️ خطأ من المستخدم {uid}:\n{e}")
-        except:
-            pass
+        bot.send_message(DEV_ID, f"⚠️ خطأ عند تسجيل الموديول:\n{module}\n{e}")
 
 # ======================
-# Handler عام
+# بدء الاستماع
 # ======================
-@bot.message_handler(func=lambda m: True)
-def main_handler(message):
-    dispatch_message(message)
-
-# ======================
-# تشغيل البوت
-# ======================
-if __name__ == "__main__":
-    load_modules()
-    print("🤖 البوت جاهز للعمل")
-    bot.infinity_polling()
+bot.infinity_polling()

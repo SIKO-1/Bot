@@ -102,6 +102,18 @@ def block_stickers(message):
     except:
         pass
 
+if text in ["تفعيل AI", "تعطيل AI"]:
+    if not is_admin(bot, chat_id, uid):
+        bot.reply_to(message, "❌ فقط مالك المجموعة والمشرفين يمكنهم تعديل الإعدادات.")
+        return
+
+    if text == "تفعيل AI":
+        db_manager.set_ai_enabled(chat_id, True)
+        bot.reply_to(message, "✅ تم تفعيل AI في هذه المجموعة.")
+    elif text == "تعطيل AI":
+        db_manager.set_ai_enabled(chat_id, False)
+        bot.reply_to(message, "🚫 تم تعطيل AI في هذه المجموعة.")
+
 # ======================
 # أوامر تفعيل/تعطيل الصور والملصقات
 # ======================

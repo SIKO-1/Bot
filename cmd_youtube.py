@@ -1,85 +1,71 @@
-# ملف: cmd_youtube.py
+# cmd_youtube.py
 import os
-import re
 import subprocess
-import tempfile
-from telebot import types
-from yt_dlp import YoutubeDL
-import shutil
+import telebot
+from youtube_search import YoutubeSearch
+import requests
+from tempfile import mkdtemp
 
-COMMANDS = ["يوت"]
-
-YDL_OPTS = {
-    "format": "bestaudio/best",
-    "postprocessors": [{
-        "key": "FFmpegExtractAudio",
-        "preferredcodec": "mp3",
-        "preferredquality": "192",
-    }],
-    "outtmpl": "",  # سيتم تحديده وقت التحميل
-    "quiet": True,
-    "noplaylist": True,
-}
-
-def search_youtube(query):
-    safe_query = re.sub(r"[^\w\s]", "", query)
-    return f"ytsearch1:{safe_query}"
-
-def download_audio(query, chat_id):
-    tmpdir = tempfile.mkdtemp(prefix="ytmp3_")  # مجلد مؤقت ثابت
-    mp3_path = os.path.join(tmpdir, f"{chat_id}.mp3")
-    YDL_OPTS["outtmpl"] = mp3_path
-    try:
-        with YoutubeDL(YDL_OPTS) as ydl:
-            info = ydl.extract_info(search_youtube(query), download=True)
-            if "entries" in info:
-                entry = info["entries"][0]
-                title = entry.get("title")
-                thumbnail = entry.get("thumbnail")
-            else:
-                title = info.get("title")
-                thumbnail = info.get("thumbnail")
-        return mp3_path, title, thumbnail, tmpdir
-    except Exception as e:
-        shutil.rmtree(tmpdir, ignore_errors=True)
-        return None, None, None, None
-
-def handle(bot, message, cmd_modules=None, game_modules=None, module_errors=None):
+def handle(bot, message):
     text = message.text.strip()
-    chat_id = message.chat.id
-
     if not text.lower().startswith("يوت "):
         return
 
     query = text[4:].strip()
     if not query:
-        bot.reply_to(message, "❌ اكتب اسم الأغنية بعد 'يوت'")
+        bot.reply_to(message, "❌ اكتب اسم الأغنية بعد الأمر 'يوت'")
         return
 
-    sent_msg = bot.send_message(chat_id, "👑 الإمبراطور يبحث ويجهّز MP3...")
+    chat_id = message.chat.id
+    msg = bot.send_message(chat_id, "👑 الإمبراطور يبحث ويجهّز MP3...")
 
-    mp3_path, title, thumbnail, tmpdir = download_audio(query, chat_id)
-
-    if not mp3_path or not os.path.isfile(mp3_path):
-        bot.edit_message_text("❌ حدث خطأ أثناء جلب الأغنية.", chat_id, sent_msg.message_id)
-        return
-
-    caption = f"🎵 {title}" if title else "🎵 أغنية جاهزة"
-
-    # إرسال الغلاف أولاً
-    if thumbnail:
-        try:
-            bot.send_photo(chat_id, thumbnail, caption=caption)
-        except:
-            pass
-
-    # إرسال الصوت
     try:
-        with open(mp3_path, "rb") as f:
-            bot.send_audio(chat_id, f, title=title)
-    except Exception as e:
-        bot.send_message(chat_id, f"❌ حدث خطأ أثناء إرسال الصوت: {e}")
+        # بحث عن أول نتيجة على يوتيوب
+        results = YoutubeSearch(query, max_results=1).to_dict()
+        if not results:
+            bot.edit_message_text("❌ لم يتم العثور على الأغنية.", chat_id, msg.message_id)
+            return
 
-    # تنظيف الملفات بعد الإرسال
-    shutil.rmtree(tmpdir, ignore_errors=True)
-    bot.delete_message(chat_id, sent_msg.message_id)
+        video = results[0]
+        video_url = f"https://www.youtube.com{video['url_suffix']}"
+        title = video['title']
+        thumb_url = video['thumbnails'][0]
+
+        # تحميل صورة الغلاف
+        thumb_data = requests.get(thumb_url).content
+
+        # حفظ مؤقت
+        tmp_dir = mkdtemp()
+        mp3_path = os.path.join(tmp_dir, f"{chat_id}.mp3")
+        thumb_path = os.path.join(tmp_dir, f"{chat_id}.jpg")
+
+        with open(thumb_path, "wb") as f:
+            f.write(thumb_data)
+
+        # تحميل الصوت بصيغة MP3
+        cmd = [
+            "yt-dlp",
+            "-x",
+            "--audio-format", "mp3",
+            "--restrict-filenames",
+            "--no-check-certificate",
+            video_url,
+            "-o", mp3_path,
+            "--no-playlist"
+        ]
+        subprocess.run(cmd, check=True)
+
+        if not os.path.exists(mp3_path):
+            bot.edit_message_text("❌ حدث خطأ أثناء جلب الأغنية.", chat_id, msg.message_id)
+            return
+
+        # إرسال الغلاف
+        bot.send_photo(chat_id, open(thumb_path, "rb"), caption=f"🎵 {title}")
+
+        # إرسال الصوت
+        bot.send_audio(chat_id, open(mp3_path, "rb"), title=title)
+
+        bot.delete_message(chat_id, msg.message_id)
+
+    except Exception as e:
+        bot.edit_message_text(f"❌ حدث خطأ: {e}", chat_id, msg.message_id)

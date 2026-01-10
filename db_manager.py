@@ -270,3 +270,56 @@ def disable_birthday_auto(uid: int):
 def is_birthday_auto_enabled(uid: int):
     user = _get_user(uid)
     return user.get("birthday_auto", False)
+
+#======================
+# إعدادات المجموعات (صور / ملصقات)
+#======================
+
+groups = db["groups"]
+
+def _get_group(chat_id: int):
+    group = groups.find_one({"chat_id": chat_id})
+    if not group:
+        group = {
+            "chat_id": chat_id,
+            "photos_enabled": True,
+            "stickers_enabled": True
+        }
+        groups.insert_one(group)
+    return group
+
+# -------- الصور --------
+def enable_photos(chat_id: int):
+    _get_group(chat_id)
+    groups.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"photos_enabled": True}}
+    )
+
+def disable_photos(chat_id: int):
+    _get_group(chat_id)
+    groups.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"photos_enabled": False}}
+    )
+
+def photos_allowed(chat_id: int) -> bool:
+    return _get_group(chat_id).get("photos_enabled", True)
+
+# -------- الملصقات --------
+def enable_stickers(chat_id: int):
+    _get_group(chat_id)
+    groups.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"stickers_enabled": True}}
+    )
+
+def disable_stickers(chat_id: int):
+    _get_group(chat_id)
+    groups.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"stickers_enabled": False}}
+    )
+
+def stickers_allowed(chat_id: int) -> bool:
+    return _get_group(chat_id).get("stickers_enabled", True)

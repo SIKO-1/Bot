@@ -3,11 +3,11 @@ import random
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 
-======================
+#======================
 
-إعداد MongoDB
+#إعداد MongoDB
 
-======================
+#======================
 
 MONGO_URI = "mongodb+srv://wpee923_db_user:08520852KR@cluster0.nzjd5gc.mongodb.net/?retryWrites=true&w=majority"
 DB_NAME = "imperial_bot"
@@ -22,21 +22,21 @@ print("❌ فشل الاتصال بـ MongoDB")
 
 DAY = 86400  # 24 ساعة
 
-======================
+#======================
 
-المطورين (يحق لهم التخفيض فقط)
+#المطورين (يحق لهم التخفيض فقط)
 
-======================
+#======================
 
 DEVELOPERS = [
 5860391324,  # ← حط ID المطور
 ]
 
-======================
+#======================
 
-جلب / إنشاء مستخدم
+#جلب / إنشاء مستخدم
 
-======================
+#======================
 
 def _get_user(uid: int):
 user = users.find_one({"uid": uid})
@@ -60,11 +60,11 @@ user = {
 users.insert_one(user)
 return users.find_one({"uid": uid})
 
-======================
+#======================
 
-الذهب
+#الذهب
 
-======================
+#======================
 
 def get_user_gold(uid):
 return _get_user(uid)["gold"]
@@ -75,11 +75,11 @@ new_gold = max(0, user["gold"] + amount)
 users.update_one({"uid": uid}, {"$set": {"gold": new_gold}})
 return new_gold
 
-======================
+#======================
 
-البنك
+#البنك
 
-======================
+#======================
 
 def get_user_bank(uid):
 return _get_user(uid)["bank"]
@@ -98,11 +98,11 @@ return False
 users.update_one({"uid": uid}, {"$inc": {"bank": -amount, "gold": amount}})
 return True
 
-======================
+#======================
 
-المخزون
+#المخزون
 
-======================
+#======================
 
 def get_inventory(uid):
 return _get_user(uid).get("inventory", [])
@@ -126,11 +126,11 @@ new_inv.append(i)
 users.update_one({"uid": uid}, {"$set": {"inventory": new_inv}})
 return count == quantity
 
-======================
+#======================
 
-الرتب
+#الرتب
 
-======================
+#======================
 
 def get_user_rank(uid):
 return _get_user(uid).get("rank", 0)
@@ -138,11 +138,11 @@ return _get_user(uid).get("rank", 0)
 def set_user_rank(uid, rank):
 users.update_one({"uid": uid}, {"$set": {"rank": rank}})
 
-======================
+#======================
 
-تخفيض الرتبة (للمطور فقط)
+#تخفيض الرتبة (للمطور فقط)
 
-======================
+#======================
 
 def downgrade_user_rank(by_uid: int, target_uid: int, new_rank: int):
 if by_uid not in DEVELOPERS:
@@ -174,11 +174,11 @@ return {
     "new_rank": new_rank  
 }
 
-======================
+#======================
 
-المهام اليومية
+#المهام اليومية
 
-======================
+#======================
 
 TASKS = [
 {"type": "dice", "desc": "العب لعبة النرد 🎲"},
@@ -231,11 +231,11 @@ return user.get("box_ready", False) and not user.get("box_opened", False)
 def set_box_opened(uid):
 users.update_one({"uid": uid}, {"$set": {"box_opened": True}})
 
-======================
+#======================
 
-الهدايا اليومية
+#الهدايا اليومية
 
-======================
+#======================
 
 def take_gift(uid, amount=100):
 user = _get_user(uid)
@@ -250,11 +250,11 @@ def can_take_gift(uid):
 user = _get_user(uid)
 return time.time() - user.get("last_gift_time", 0) >= DAY
 
-======================
+#======================
 
-الحظر
+# الحظر
 
-======================
+#======================
 
 def is_user_banned(uid):
 return _get_user(uid).get("banned", False)
@@ -265,20 +265,20 @@ users.update_one({"uid": uid}, {"$set": {"banned": True}})
 def unban_user(uid):
 users.update_one({"uid": uid}, {"$set": {"banned": False}})
 
-======================
+#======================
 
-إحصائيات
+#إحصائيات
 
-======================
+#======================
 
 def get_all_users_count():
 return users.count_documents({})
 
-======================
+#======================
 
-عيد الميلاد
+#عيد الميلاد
 
-======================
+#======================
 
 def add_birthday(uid: int, day: int, month: int, year: int = None):
 if day < 1 or day > 31 or month < 1 or month > 12:

@@ -1,5 +1,5 @@
+pytube==15.0.0
 pyTelegramBotAPI
-pytube
 youtube-search-python
 requests
 pymongo

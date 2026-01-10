@@ -1,17 +1,16 @@
 # ملف: cmd_youtube.py
-import telebot
+from youtubesearchpython import VideosSearch
 from pytube import YouTube
-from youtube_search import YoutubeSearch
 import requests
-from io import BytesIO
+import tempfile
+import os
+from db_manager import _get_user
 
 COMMANDS = ["يوت"]
 
 def handle(bot, message):
-    text = message.text
-    chat_id = message.chat.id
-
-    if not text.startswith("يوت "):
+    text = message.text.strip()
+    if not text.lower().startswith("يوت "):
         return
 
     query = text[4:].strip()
@@ -19,51 +18,34 @@ def handle(bot, message):
         bot.reply_to(message, "❌ اكتب اسم الأغنية بعد 'يوت'")
         return
 
+    msg = bot.send_message(message.chat.id, f"🔎 جاري البحث عن: {query} ...")
     try:
         # البحث عن الفيديو
-        results = YoutubeSearch(query, max_results=1).to_dict()
-        if not results:
-            bot.reply_to(message, "❌ ما حصلت أي أغنية لهذا الاسم.")
+        videosSearch = VideosSearch(query, limit=1)
+        result = videosSearch.result()["result"]
+        if not result:
+            bot.edit_message_text("❌ لم يتم العثور على أي أغنية.", message.chat.id, msg.message_id)
             return
 
-        video = results[0]
-        video_url = f"https://www.youtube.com{video['url_suffix']}"
-        title = video['title']
-        thumbnail_url = video['thumbnails'][0]
+        video = result[0]
+        title = video["title"]
+        duration = video["duration"]
+        thumbnail_url = video["thumbnails"][0]["url"]
+        video_url = video["link"]
 
-        # تحميل الصورة
-        try:
-            thumb_data = requests.get(thumbnail_url, timeout=10).content
-            thumb_file = BytesIO(thumb_data)
-            thumb_file.name = "thumb.jpg"
-        except:
-            thumb_file = None
+        # تحميل الصوت مؤقتًا
+        yt = YouTube(video_url)
+        audio_stream = yt.streams.filter(only_audio=True).first()
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        audio_stream.download(output_path=os.path.dirname(temp_file.name), filename=os.path.basename(temp_file.name))
 
-        # تحميل الصوت (MP4) بشكل خفيف
-        try:
-            yt = YouTube(video_url)
-            stream = yt.streams.filter(only_audio=True, file_extension="mp4").first()
-            if not stream:
-                bot.reply_to(message, "❌ ما قدر أحصل الصوت.")
-                return
-            # الحد الأقصى لحجم الملف: 15 ميجا (Railway غالبًا يسمح)
-            if stream.filesize_approx and stream.filesize_approx > 15*1024*1024:
-                bot.reply_to(message, "❌ حجم الأغنية كبير جدًا، حاول بأغنية أصغر.")
-                return
-            audio_data = stream.stream_to_buffer()
-            audio_data.seek(0)
-        except Exception as e:
-            bot.reply_to(message, f"❌ حدث خطأ أثناء تحميل الصوت:\n{e}")
-            return
+        # إرسال صورة + صوت
+        bot.send_photo(message.chat.id, photo=thumbnail_url, caption=f"🎵 {title}\n⏱️ {duration}")
+        with open(temp_file.name, "rb") as f:
+            bot.send_audio(message.chat.id, f)
 
-        # إرسال الصورة + الصوت
-        caption = f"🎵 {title}\n📎 [رابط اليوتيوب]({video_url})"
-        if thumb_file:
-            bot.send_photo(chat_id, thumb_file, caption=caption, parse_mode="Markdown")
-        else:
-            bot.send_message(chat_id, caption, parse_mode="Markdown")
-
-        bot.send_audio(chat_id, audio_data, title=title)
+        os.remove(temp_file.name)
+        bot.edit_message_text(f"✅ تم تحميل الأغنية: {title}", message.chat.id, msg.message_id)
 
     except Exception as e:
-        bot.reply_to(message, f"❌ حدث خطأ:\n{e}")
+        bot.edit_message_text(f"❌ حدث خطأ: {e}", message.chat.id, msg.message_id)

@@ -3,15 +3,13 @@ import telebot
 import importlib.util
 import traceback
 import db_manager
-import sys
 
 # =====================
 # الإعدادات
 # =====================
-
 TOKEN = os.getenv("BOT_TOKEN")  # لازم يكون موجود في البيئة
 DEV_ID = 5860391324
-BOT_ENABLED = True  # متغير عالمي لتشغيل/إطفاء البوت
+BOT_ENABLED = True  # لتشغيل/إطفاء البوت
 
 if not TOKEN:
     raise RuntimeError("❌ BOT_TOKEN غير موجود")
@@ -25,7 +23,6 @@ module_errors = {}
 # =====================
 # تحميل الموديولات
 # =====================
-
 def load_modules():
     global cmd_modules, game_modules, module_errors
 
@@ -62,36 +59,39 @@ def load_modules():
 # =====================
 # أوامر البوت
 # =====================
-
 @bot.message_handler(commands=["start"])
 def start(message):
-    bot.reply_to(message, "مرحبا! البوت شغال 🎉")
+    bot.send_message(message.chat.id, "أهلاً بك في البوت! 🤖")
 
 @bot.message_handler(commands=["restart"])
 def restart_bot(message):
     if message.from_user.id != DEV_ID:
-        bot.reply_to(message, "❌ هذا الأمر للمطور فقط.")
+        bot.send_message(message.chat.id, "❌ هذا الأمر للمطور فقط.")
         return
-    bot.reply_to(message, "🔄 جاري إعادة تشغيل البوت...")
-    python = sys.executable
-    os.execl(python, python, *sys.argv)
+    bot.send_message(message.chat.id, "🔄 جاري إعادة تشغيل البوت...")
+    os._exit(0)  # يوقف البوت ويعيد تشغيله تلقائياً على Railway/Heroku
 
 # =====================
-# تمرير الرسائل للموديولات
+# التعامل مع باقي الأوامر
 # =====================
-
-@bot.message_handler(func=lambda m: True)
+@bot.message_handler(func=lambda msg: True)
 def handle_commands(message):
+    text = message.text
     for module_name, module in cmd_modules.items():
         try:
             module.handle(bot, message)
         except Exception as e:
-            bot.send_message(DEV_ID, f"⚠️ خطأ عند تنفيذ {module_name}:\n{e}")
+            try:
+                bot.send_message(DEV_ID, f"⚠️ خطأ في تنفيذ الموديول {module_name}:\n{e}")
+            except:
+                pass
+
+# =====================
+# بدء تحميل الموديولات
+# =====================
+load_modules()
 
 # =====================
 # بدء البوت
 # =====================
-
-if __name__ == "__main__":
-    load_modules()
-    bot.polling(none_stop=True)
+bot.infinity_polling()

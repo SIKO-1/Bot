@@ -190,6 +190,67 @@ def block_stickers(message):
         pass
 
 # ======================
+# أمر تفعيل/تعطيل الصور والملصقات
+# ======================
+@bot.message_handler(func=lambda m: True, content_types=["text", "photo", "sticker"])
+def handle_group_settings(message):
+    chat_id = message.chat.id
+    uid = message.from_user.id
+    text = message.text.strip() if message.text else None
+
+    # ======================
+    # فقط في المجموعات
+    # ======================
+    if message.chat.type == "private":
+        return
+
+    # ======================
+    # تحقق من صلاحيات المشرف
+    # ======================
+    def is_admin(bot, chat_id, user_id):
+        try:
+            member = bot.get_chat_member(chat_id, user_id)
+            return member.status in ["administrator", "creator"]
+        except:
+            return False
+
+    # ======================
+    # أوامر الإعدادات
+    # ======================
+    if text in ["تعطيل الصور", "تفعيل الصور", "تعطيل الملصقات", "تفعيل الملصقات"]:
+        if not is_admin(bot, chat_id, uid):
+            bot.reply_to(message, "❌ فقط مالك المجموعة والمشرفين يمكنهم تعديل الإعدادات.")
+            return
+
+        if text == "تعطيل الصور":
+            db_manager.set_photos_allowed(chat_id, False)
+            bot.reply_to(message, "🚫 تم تعطيل الصور في هذه المجموعة.")
+        elif text == "تفعيل الصور":
+            db_manager.set_photos_allowed(chat_id, True)
+            bot.reply_to(message, "✅ تم تفعيل الصور في هذه المجموعة.")
+        elif text == "تعطيل الملصقات":
+            db_manager.set_stickers_allowed(chat_id, False)
+            bot.reply_to(message, "🚫 تم تعطيل الملصقات في هذه المجموعة.")
+        elif text == "تفعيل الملصقات":
+            db_manager.set_stickers_allowed(chat_id, True)
+            bot.reply_to(message, "✅ تم تفعيل الملصقات في هذه المجموعة.")
+
+    # ======================
+    # حذف الصور/ملصقات غير المسموح بها
+    # ======================
+    if message.content_type == "photo" and not db_manager.is_photos_allowed(chat_id):
+        try:
+            bot.delete_message(chat_id, message.message_id)
+        except:
+            pass
+
+    if message.content_type == "sticker" and not db_manager.is_stickers_allowed(chat_id):
+        try:
+            bot.delete_message(chat_id, message.message_id)
+        except:
+            pass
+
+# ======================
 # تشغيل البوت
 # ======================
 bot.infinity_polling()

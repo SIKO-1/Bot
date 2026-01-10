@@ -63,7 +63,7 @@ def load_modules():
 def start(message):
     bot.send_message(message.chat.id, "أهلاً بك في البوت! 🤖")
 
-@bot.message_handler(commands=["restart"])
+@bot.message_handler(commands=["رست"])
 def restart_bot(message):
     if message.from_user.id != DEV_ID:
         bot.send_message(message.chat.id, "❌ هذا الأمر للمطور فقط.")

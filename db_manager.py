@@ -20,10 +20,10 @@ except ConnectionFailure:
 DAY = 86400  # 24 ساعة
 
 # ======================
-# المطورين (يحق لهم التخفيض فقط)
+# المطورين
 # ======================
 DEVELOPERS = [
-    5860391324,  # ← حط ID المطور
+    5860391324,  # ID المطور
 ]
 
 # ======================
@@ -47,7 +47,7 @@ def _get_user(uid: int):
             "name": None,
             "username": None,
             "total_messages": 0,
-            "married_to": None,  # إضافة خاصية الزواج
+            "married_to": None,
         }
         users.insert_one(user)
     return users.find_one({"uid": uid})
@@ -118,35 +118,17 @@ def get_user_rank(uid):
 def set_user_rank(uid, rank):
     users.update_one({"uid": uid}, {"$set": {"rank": rank}})
 
-# ======================
-# تخفيض الرتبة (للمطور فقط)
-# ======================
 def downgrade_user_rank(by_uid: int, target_uid: int, new_rank: int):
     if by_uid not in DEVELOPERS:
-        return {
-            "ok": False,
-            "error": "❌ هذا الأمر للمطور فقط."
-        }
-
+        return {"ok": False, "error": "❌ هذا الأمر للمطور فقط."}
     if new_rank < 0:
         new_rank = 0
-
     target = _get_user(target_uid)
     old_rank = target.get("rank", 0)
-
     if new_rank >= old_rank:
-        return {
-            "ok": False,
-            "error": "⚠️ لا يمكن التخفيض لنفس الرتبة أو أعلى."
-        }
-
+        return {"ok": False, "error": "⚠️ لا يمكن التخفيض لنفس الرتبة أو أعلى."}
     users.update_one({"uid": target_uid}, {"$set": {"rank": new_rank}})
-
-    return {
-        "ok": True,
-        "old_rank": old_rank,
-        "new_rank": new_rank
-    }
+    return {"ok": True, "old_rank": old_rank, "new_rank": new_rank}
 
 # ======================
 # المهام اليومية
@@ -272,10 +254,8 @@ def is_birthday_auto_enabled(uid: int):
     return user.get("birthday_auto", False)
 
 # ======================
-# إعدادات المجموعة
+# إعدادات المجموعات
 # ======================
-
-# قاعدة بيانات مجموعات: لكل مجموعة وضعها الخاص
 def set_photos_allowed(chat_id: int, allowed: bool):
     users.update_one(
         {"chat_id": chat_id},
@@ -294,10 +274,10 @@ def is_photos_allowed(chat_id: int) -> bool:
     group = users.find_one({"chat_id": chat_id})
     if group and "photos_allowed" in group:
         return group["photos_allowed"]
-    return True  # افتراضياً مسموح
+    return True
 
 def is_stickers_allowed(chat_id: int) -> bool:
     group = users.find_one({"chat_id": chat_id})
     if group and "stickers_allowed" in group:
         return group["stickers_allowed"]
-    return True  # افتراضياً مسموح
+    return True

@@ -1,55 +1,70 @@
 # ملف: cmd_youtube.py
 import os
-from youtubesearchpython import VideosSearch
+import io
+import telebot
 from pytube import YouTube
-from telebot import types
+from youtubesearchpython import VideosSearch
+import requests
 
 COMMANDS = ["يوت"]
 
-def handle(bot, message, *args):
+def handle(bot, message):
     text = message.text.strip()
     if not text.lower().startswith("يوت "):
         return
 
     query = text[4:].strip()
+    chat_id = message.chat.id
+
     if not query:
         bot.reply_to(message, "❌ اكتب اسم الأغنية بعد 'يوت'")
         return
 
-    msg = bot.send_message(message.chat.id, "🔎 جاري البحث عن الأغنية...")
+    msg = bot.send_message(chat_id, f"🔍 جاري البحث عن: {query}...")
     try:
-        # البحث عن الفيديو
-        videos = VideosSearch(query, limit=1)
-        result = videos.result()['result'][0]
+        videos_search = VideosSearch(query, limit=1)
+        result = videos_search.result()
+        if not result['result']:
+            bot.edit_message_text("❌ لم يتم العثور على الأغنية.", chat_id, msg.message_id)
+            return
 
-        title = result['title']
-        thumbnail = result['thumbnails'][0]['url']
-        url = result['link']
+        video = result['result'][0]
+        title = video['title']
+        duration = video.get('duration', "غير معروف")
+        thumbnail_url = video['thumbnails'][0]['url']
+        video_url = video['link']
 
-        # تنزيل الصوت
-        yt = YouTube(url)
-        audio_stream = yt.streams.filter(only_audio=True).first()
+        # تحميل صورة الأغنية
+        response = requests.get(thumbnail_url)
+        img_bytes = io.BytesIO(response.content)
 
-        safe_title = "".join(c for c in title if c.isalnum() or c in " -_")
-        file_path = f"{safe_title}.mp3"
-        audio_stream.download(filename=file_path)
+        # تحميل الصوت بصيغة MP3
+        yt = YouTube(video_url)
+        stream = yt.streams.filter(only_audio=True).first()
+        audio_file = stream.download(filename=f"{yt.video_id}.mp4")
+        mp3_file = f"{yt.video_id}.mp3"
 
-        # إرسال الصورة مع العنوان
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🔊 تحميل MP3", callback_data="noop"))
-        bot.send_photo(
-            message.chat.id,
-            photo=thumbnail,
-            caption=f"🎵 {title}\n📎 الرابط: {url}",
-            reply_markup=markup
-        )
+        # تحويل MP4 إلى MP3 (إذا كان ffmpeg موجود)
+        try:
+            import moviepy.editor as mp
+            clip = mp.AudioFileClip(audio_file)
+            clip.write_audiofile(mp3_file)
+            clip.close()
+        except:
+            mp3_file = audio_file  # fallback للملف الأصلي إذا لم يكن ffmpeg موجود
 
-        # إرسال الملف الصوتي
-        with open(file_path, "rb") as f:
-            bot.send_audio(message.chat.id, f, title=title)
+        # إرسال الأغنية
+        bot.edit_message_text(f"🎵 تم العثور على الأغنية: {title}\n⏱ المدة: {duration}", chat_id, msg.message_id)
+        bot.send_photo(chat_id, img_bytes, caption=f"🎶 {title}")
+        bot.send_audio(chat_id, open(mp3_file, "rb"))
 
-        os.remove(file_path)  # حذف الملف بعد الإرسال
-        bot.delete_message(message.chat.id, msg.message_id)
+        # حذف الملفات المؤقتة
+        try:
+            os.remove(audio_file)
+            if os.path.exists(mp3_file):
+                os.remove(mp3_file)
+        except:
+            pass
 
     except Exception as e:
-        bot.edit_message_text(chat_id=message.chat.id, message_id=msg.message_id, text=f"❌ حدث خطأ: {e}")
+        bot.edit_message_text(f"❌ حدث خطأ أثناء البحث عن الأغنية:\n{str(e)}", chat_id, msg.message_id)

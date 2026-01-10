@@ -281,3 +281,19 @@ def is_stickers_allowed(chat_id: int) -> bool:
     if group and "stickers_allowed" in group:
         return group["stickers_allowed"]
     return True
+
+# ======================
+# إعدادات AI لكل مجموعة
+# ======================
+def set_ai_enabled(chat_id: int, enabled: bool):
+    users.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"ai_enabled": enabled}},
+        upsert=True
+    )
+
+def get_ai_enabled(chat_id: int) -> bool:
+    group = users.find_one({"chat_id": chat_id})
+    if group and "ai_enabled" in group:
+        return group["ai_enabled"]
+    return True  # افتراضياً مفعل

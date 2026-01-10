@@ -2,3 +2,4 @@ pyTelegramBotAPI
 pymongo
 dnspython
 pytube
+youtube-search-python

@@ -1,7 +1,6 @@
 # ملف: cmd_marriage.py
-import random
-from db_manager import _get_user, get_user_rank, set_user_rank, users
 import time
+from db_manager import _get_user, users, get_user_rank, set_user_rank
 
 COMMANDS = ["زوجني", "طلقني", "قائمة المتزوجين"]
 
@@ -17,40 +16,50 @@ def get_marriage(uid):
     return users.find_one({"$or": [{"husband_uid": uid}, {"wife_uid": uid}]})
 
 # ======================
-# توليد ميمز للزوجين
+# أمر زوجني مع تحديد الشريك
 # ======================
-def generate_meme(husband_user, wife_user):
-    # مجرد نص ميمز، يمكن تغييره لأي صورة في المستقبل
-    return f"💞 {husband_user['uid']} ❤️ {wife_user['uid']} - مبروك الزواج!"
-
-# ======================
-# أمر زوجني
-# ======================
-def marry_random(bot, message):
+def marry_user(bot, message, target_identifier):
     user = _get_user(message.from_user.id)
     if is_already_married(user["uid"]):
         bot.reply_to(message, "⚠️ أنت متزوج بالفعل!")
         return
 
-    # جلب جميع المستخدمين غير المتزوجين عشوائياً
-    all_users = list(users.find({"uid": {"$ne": user["uid"]}}))
-    candidates = [u for u in all_users if not is_already_married(u["uid"])]
-    if not candidates:
-        bot.reply_to(message, "⚠️ لا يوجد أحد متاح للزواج حالياً.")
+    # البحث عن الشريك بالـ ID أو username
+    partner = None
+    if target_identifier.startswith("@"):  # username
+        username = target_identifier[1:]
+        partner = users.find_one({"username": username})
+    else:  # على افتراض أنه ID
+        try:
+            target_id = int(target_identifier)
+            partner = users.find_one({"uid": target_id})
+        except:
+            bot.reply_to(message, "⚠️ الرجاء إدخال ID صالح أو اسم مستخدم صحيح.")
+            return
+
+    if not partner:
+        bot.reply_to(message, "⚠️ هذا الشخص غير موجود.")
+        return
+    if is_already_married(partner["uid"]):
+        bot.reply_to(message, "⚠️ هذا الشخص متزوج بالفعل!")
+        return
+    if partner["uid"] == user["uid"]:
+        bot.reply_to(message, "⚠️ لا يمكنك الزواج بنفسك!")
         return
 
-    partner = random.choice(candidates)
-
-    # تسجيل الزواج في MongoDB
+    # تسجيل الزواج
     users.insert_one({
         "husband_uid": user["uid"],
         "wife_uid": partner["uid"],
         "married_at": int(time.time())
     })
 
-    meme = generate_meme(user, partner)
-    bot.send_message(message.chat.id, f"💍 تم الزواج بنجاح بين {user['uid']} ❤️ {partner['uid']}")
-    bot.send_message(message.chat.id, meme)
+    bot.send_message(
+        message.chat.id,
+        f"💍 تم الزواج بنجاح!\n"
+        f"👰 الزوج: {user.get('name','غير معروف')} (@{user.get('username','غير موجود')})\n"
+        f"🤵 الزوجة: {partner.get('name','غير معروف')} (@{partner.get('username','غير موجود')})"
+    )
 
 # ======================
 # أمر طلقني
@@ -76,7 +85,10 @@ def list_married(bot, message):
 
     text = "💑 قائمة المتزوجين:\n"
     for m in all_marriages:
-        text += f"• {m['husband_uid']} ❤️ {m['wife_uid']}\n"
+        husband = users.find_one({"uid": m["husband_uid"]})
+        wife = users.find_one({"uid": m["wife_uid"]})
+        text += f"• {husband.get('name','غير معروف')} (@{husband.get('username','غير موجود')}) ❤️ {wife.get('name','غير معروف')} (@{wife.get('username','غير موجود')})\n"
+
     bot.send_message(message.chat.id, text)
 
 # ======================
@@ -89,9 +101,10 @@ def handle(bot, message):
     text = message.text.strip()
     uid = message.from_user.id
 
-    if text == "زوجني":
-        marry_random(bot, message)
-    elif text == "طلقني":
+    if text.startswith("زوجني "):
+        target_identifier = text[6:].strip()
+        marry_user(bot, message, target_identifier)
+    elif text == "طلاقني":
         divorce(bot, message)
     elif text == "قائمة المتزوجين":
         list_married(bot, message)

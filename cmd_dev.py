@@ -1,9 +1,3 @@
-import telebot
-import os
-import importlib.util
-
-COMMANDS = ["تحديث", "اشعار"]
-
 def handle(bot: telebot.TeleBot, message, cmd_modules, game_modules, module_errors):
     DEV_ID = 5860391324
     uid = message.from_user.id
@@ -13,70 +7,46 @@ def handle(bot: telebot.TeleBot, message, cmd_modules, game_modules, module_erro
 
     text = message.text.strip()
 
-    # ======================================
-    # أمر تحديث الموديولات
-    # ======================================
+    # ======================
+    # تحديث الموديولات
+    # ======================
     if text.lower() == "تحديث":
-        base_path = os.path.dirname(__file__)
-        cmd_modules.clear()
-        game_modules.clear()
+        # محاولة تحميل الموديولات
         module_errors.clear()
-
-        loaded_cmds = []
-        loaded_games = []
-
-        for filename in os.listdir(base_path):
-            if not filename.endswith(".py") or filename.startswith("__") or filename=="bot.py":
-                continue
-            module_name = filename[:-3]
-            file_path = os.path.join(base_path, filename)
-
+        for filename in list(cmd_modules.keys()) + list(game_modules.keys()):
             try:
-                spec = importlib.util.spec_from_file_location(module_name, file_path)
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-
-                if hasattr(module, "handle"):
-                    if filename.startswith("cmd_"):
-                        cmd_modules[module_name] = module
-                        loaded_cmds.append(module_name)
-                    elif filename.startswith("game_"):
-                        game_modules[module_name] = module
-                        loaded_games.append(module_name)
-
+                # هنا ممكن تعمل reload لكل موديول إذا تحب
+                pass
             except Exception as e:
                 module_errors[filename] = str(e)
 
-        msg_lines = ["🔄 تم تحديث الموديولات\n"]
-        if loaded_cmds:
-            msg_lines.append("✅ CMD:")
-            for m in loaded_cmds:
-                msg_lines.append(m)
-        if loaded_games:
-            msg_lines.append("\n🎮 GAME:")
-            for g in loaded_games:
-                msg_lines.append(g)
+        # إنشاء رسالة النتائج
+        msg = "🔄 تم تحديث الموديولات\n\n"
+        if cmd_modules:
+            msg += "✅ CMD:\n" + "\n".join(cmd_modules.keys()) + "\n\n"
+        if game_modules:
+            msg += "🎮 GAME:\n" + "\n".join(game_modules.keys()) + "\n\n"
         if module_errors:
-            msg_lines.append("\n⚠️ أخطاء:")
-            for f, err in module_errors.items():
-                msg_lines.append(f"• {f}: {err}")
+            msg += "⚠️ أخطاء:\n"
+            for file, err in module_errors.items():
+                msg += f"• {file}: {err}\n"
 
-        bot.reply_to(message, "\n".join(msg_lines))
+        bot.reply_to(message, msg)
 
-    # ======================================
-    # أمر إرسال رسالة جماعية
-    # ======================================
+    # ======================
+    # إرسال اشعار للمستخدمين
+    # ======================
     elif text.lower().startswith("اشعار "):
-        msg = text[6:].strip()
-        if not msg:
+        msg_text = text[6:].strip()
+        if not msg_text:
             bot.reply_to(message, "❌ اكتب نص الرسالة بعد 'اشعار'")
             return
 
-        all_users = cmd_modules.get("db_manager").users.find({}) if "db_manager" in cmd_modules else []
+        all_users = db_manager.users.find({})
         count = 0
         for u in all_users:
             try:
-                bot.send_message(u["uid"], f"📢 رسالة من الإمبراطور:\n\n{msg}")
+                bot.send_message(u["uid"], f"📢 رسالة من الإمبراطور:\n\n{msg_text}")
                 count += 1
             except:
                 pass

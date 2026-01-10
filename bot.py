@@ -70,4 +70,3 @@ for filename in os.listdir(base_path):
 
 @bot.message_handler(commands=["start"])
 def start(message):
-    

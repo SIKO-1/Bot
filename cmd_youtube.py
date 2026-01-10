@@ -1,78 +1,61 @@
+# cmd_youtube.py
 import os
-import subprocess
-import json
-import requests
-
-COMMANDS = ["يوت"]
+import tempfile
+import traceback
+from youtubesearchpython import VideosSearch
+from pytube import YouTube
+from telebot import types
 
 def handle(bot, message):
-    if not message.text.startswith("يوت"):
-        return
-
-    query = message.text.replace("يوت", "", 1).strip()
-    if not query:
-        bot.reply_to(message, "❌ اكتب اسم الأغنية بعد الأمر.")
-        return
-
-    chat_id = message.chat.id
-
     try:
-        # ===== 1. جلب معلومات الفيديو (JSON) =====
-        info_cmd = [
-            "yt-dlp",
-            f'ytsearch1:"{query}"',
-            "--dump-single-json",
-            "--no-playlist"
-        ]
+        text = message.text.strip()
+        if not text.lower().startswith("يوت "):
+            return
 
-        info = subprocess.check_output(info_cmd, text=True)
-        data = json.loads(info)
+        query = text[4:].strip()
+        if not query:
+            bot.reply_to(message, "❌ اكتب اسم الأغنية بعد 'يوت'")
+            return
 
-        title = data.get("title", "أغنية")
-        thumbnail = data.get("thumbnail")
-        video_url = data.get("webpage_url")
+        msg = bot.reply_to(message, "👑 الإمبراطور يبحث ويجهّز MP3...")
 
-        # ===== 2. تحميل الصوت =====
-        audio_path = f"/tmp/{chat_id}.mp3"
+        # بحث أول نتيجة
+        videosSearch = VideosSearch(query, limit=1)
+        result = videosSearch.result()
+        if not result["result"]:
+            bot.edit_message_text("❌ ما تم العثور على الأغنية.", message.chat.id, msg.message_id)
+            return
 
-        download_cmd = [
-            "yt-dlp",
-            video_url,
-            "-x",
-            "--audio-format",
-            "mp3",
-            "-o",
-            audio_path
-        ]
+        video = result["result"][0]
+        title = video["title"]
+        thumbnail = video["thumbnails"][0]["url"]
+        url = video["link"]
 
-        subprocess.run(download_cmd, check=True)
+        bot.edit_message_text(f"🎵 وجدت الأغنية: {title}\n⏳ جاري التحميل...", message.chat.id, msg.message_id)
 
-        # ===== 3. تحميل الصورة =====
-        photo_path = f"/tmp/{chat_id}.jpg"
-        if thumbnail:
-            img = requests.get(thumbnail, timeout=10).content
-            with open(photo_path, "wb") as f:
-                f.write(img)
+        # تحميل الفيديو مؤقتاً وتحويله MP3
+        tmp_dir = tempfile.gettempdir()
+        out_file = os.path.join(tmp_dir, f"{message.chat.id}.mp3")
 
-            bot.send_photo(
-                chat_id,
-                open(photo_path, "rb"),
-                caption=f"🎧 **{title}**\n👑 Imperial Music"
-            )
+        yt = YouTube(url)
+        audio_stream = yt.streams.filter(only_audio=True).first()
+        audio_stream.download(output_path=tmp_dir, filename=f"{message.chat.id}.mp4")
 
-        # ===== 4. إرسال الصوت =====
-        bot.send_audio(
-            chat_id,
-            open(audio_path, "rb"),
-            title=title,
-            caption="🎶 تم التحميل بواسطة الإمبراطور"
-        )
+        # تحويل mp4 لـ mp3 باستخدام ffmpeg (يجب توفره على السيرفر)
+        mp4_path = os.path.join(tmp_dir, f"{message.chat.id}.mp4")
+        os.system(f"ffmpeg -y -i \"{mp4_path}\" -vn -ab 192k -ar 44100 -loglevel error \"{out_file}\"")
+        os.remove(mp4_path)  # حذف الملف الأصلي بعد التحويل
 
-        # تنظيف
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
-        if os.path.exists(photo_path):
-            os.remove(photo_path)
+        bot.edit_message_text(f"📤 جاري إرسال الأغنية: {title}", message.chat.id, msg.message_id)
+
+        # إرسال الصوت + الغلاف
+        audio = open(out_file, "rb")
+        thumb_msg = types.InputMediaPhoto(thumbnail)
+        bot.send_photo(message.chat.id, thumbnail, caption=f"🎵 {title}")
+        bot.send_audio(message.chat.id, audio, title=title)
+        audio.close()
+        os.remove(out_file)
 
     except Exception as e:
-        bot.reply_to(message, f"❌ حدث خطأ:\n{e}")
+        traceback.print_exc()
+        bot.reply_to(message, f"❌ حدث خطأ: {e}")

@@ -1,62 +1,59 @@
-# ملف: cmd_youtube.py
+# cmd_youtube.py
 import os
-import traceback
-import requests
+import subprocess
 from youtubesearchpython import VideosSearch
-from pytube import YouTube
-from io import BytesIO
-import db_manager
-
-COMMANDS = ["يوت"]
 
 def handle(bot, message):
-    text = message.text.strip()
-    uid = message.from_user.id
-
-    if not text.startswith("يوت "):
+    if not message.text:
         return
 
-    query = text[4:].strip()
+    if not message.text.startswith("يوت "):
+        return
+
+    query = message.text[4:].strip()
     if not query:
-        bot.reply_to(message, "❌ اكتب اسم الأغنية بعد 'يوت'")
+        bot.reply_to(message, "❌ اكتب اسم الأغنية بعد كلمة يوت")
         return
+
+    chat_id = message.chat.id
 
     try:
-        bot.send_message(message.chat.id, f"🔎 جاري البحث عن: {query} ...")
+        bot.send_message(chat_id, "🔎 الإمبراطور يبحث عن الأغنية...")
 
-        # البحث عن الفيديو
-        videosSearch = VideosSearch(query, limit=1)
-        result = videosSearch.result()
-        if not result["result"]:
-            bot.reply_to(message, "⚠️ لم يتم العثور على أي فيديو.")
+        search = VideosSearch(query, limit=1)
+        result = search.result()["result"]
+
+        if not result:
+            bot.reply_to(message, "❌ ما لقيت شي بهالاسم")
             return
 
-        video = result["result"][0]
-        video_title = video["title"]
-        video_link = video["link"]
-        video_thumbnail = video["thumbnails"][0]["url"]
+        video = result[0]
+        title = video["title"]
+        url = video["link"]
+        thumb = video["thumbnails"][0]["url"]
 
-        # تحميل الفيديو كـ MP3
-        bot.send_message(message.chat.id, f"⏬ جاري تحميل: {video_title} ...")
-        yt = YouTube(video_link)
-        audio_stream = yt.streams.filter(only_audio=True).first()
-        buffer = BytesIO()
-        audio_stream.stream_to_buffer(buffer)
-        buffer.seek(0)
+        bot.send_photo(chat_id, thumb, caption=f"🎧 {title}\n⏳ جاري التحميل MP3...")
 
-        # إرسال الغلاف + اسم الأغنية + الملف
-        bot.send_photo(
-            message.chat.id,
-            photo=video_thumbnail,
-            caption=f"🎵 {video_title}"
-        )
-        bot.send_audio(
-            message.chat.id,
-            audio=buffer,
-            title=video_title,
-            performer=yt.author
-        )
+        output_file = f"/tmp/{chat_id}.mp3"
+
+        command = [
+            "yt-dlp",
+            "-x",
+            "--audio-format", "mp3",
+            "-o", output_file,
+            url
+        ]
+
+        subprocess.run(command, check=True)
+
+        with open(output_file, "rb") as audio:
+            bot.send_audio(
+                chat_id,
+                audio,
+                title=title
+            )
+
+        os.remove(output_file)
 
     except Exception as e:
-        traceback.print_exc()
-        bot.reply_to(message, f"❌ حدث خطأ أثناء جلب الأغنية:\n{e}")
+        bot.reply_to(message, f"❌ حدث خطأ:\n{e}")

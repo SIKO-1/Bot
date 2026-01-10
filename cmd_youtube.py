@@ -1,7 +1,6 @@
 # cmd_youtube.py
 import os
 import subprocess
-from youtubesearchpython import VideosSearch
 
 def handle(bot, message):
     if not message.text:
@@ -18,42 +17,25 @@ def handle(bot, message):
     chat_id = message.chat.id
 
     try:
-        bot.send_message(chat_id, "🔎 الإمبراطور يبحث عن الأغنية...")
+        bot.send_message(chat_id, "👑 الإمبراطور يبحث ويجهّز MP3...")
 
-        search = VideosSearch(query, limit=1)
-        result = search.result()["result"]
-
-        if not result:
-            bot.reply_to(message, "❌ ما لقيت شي بهالاسم")
-            return
-
-        video = result[0]
-        title = video["title"]
-        url = video["link"]
-        thumb = video["thumbnails"][0]["url"]
-
-        bot.send_photo(chat_id, thumb, caption=f"🎧 {title}\n⏳ جاري التحميل MP3...")
-
-        output_file = f"/tmp/{chat_id}.mp3"
+        output = f"/tmp/{chat_id}.mp3"
 
         command = [
             "yt-dlp",
+            f"ytsearch1:{query}",
             "-x",
             "--audio-format", "mp3",
-            "-o", output_file,
-            url
+            "-o", output,
+            "--no-playlist"
         ]
 
         subprocess.run(command, check=True)
 
-        with open(output_file, "rb") as audio:
-            bot.send_audio(
-                chat_id,
-                audio,
-                title=title
-            )
+        with open(output, "rb") as audio:
+            bot.send_audio(chat_id, audio, caption=f"🎧 {query}")
 
-        os.remove(output_file)
+        os.remove(output)
 
     except Exception as e:
         bot.reply_to(message, f"❌ حدث خطأ:\n{e}")

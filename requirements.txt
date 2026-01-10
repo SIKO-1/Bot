@@ -1,6 +1,5 @@
 pyTelegramBotAPI
-pytube==15.0.0
-youtube-search-python
-requests
 pymongo
 dnspython
+youtube-search-python
+yt-dlp

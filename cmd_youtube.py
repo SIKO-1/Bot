@@ -1,43 +1,41 @@
 import os
+import telebot
 import subprocess
+import tempfile
 
 def handle(bot, message):
-    if not message.text:
+    if not message.text or not message.text.lower().startswith("يوت "):
         return
 
-    text = message.text.strip()
-    if not text.startswith("يوت "):
+    query = message.text[4:].strip()
+    if not query:
+        bot.reply_to(message, "❌ اكتب اسم الأغنية بعد 'يوت '")
         return
 
-    query = text[4:].strip()
     chat_id = message.chat.id
-
-    temp_msg = bot.send_message(chat_id, "👑 الإمبراطورية تبحث وتجهّز MP3...")
-
-    output_path = f"/tmp/{chat_id}.mp3"
+    msg = bot.send_message(chat_id, "👑 الإمبراطور يبحث ويجهّز الصوت...")
 
     try:
-        # yt-dlp يبحث أول نتيجة وينزل MP3 فقط
-        subprocess.run([
-            "yt-dlp",
-            f"ytsearch1:{query}",
-            "-x",
-            "--audio-format", "mp3",
-            "-o", output_path,
-            "--no-playlist"
-        ], check=True)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # ملف صوتي بصيغة ogg (voice)
+            out_file = os.path.join(tmpdir, f"{chat_id}.ogg")
+            
+            # yt-dlp لتحميل أول نتيجة وتحويلها إلى ogg
+            cmd = [
+                "yt-dlp",
+                f"ytsearch1:{query}",
+                "-x",
+                "--audio-format", "opus",  # opus مناسب كـ voice note
+                "-o", out_file,
+                "--no-playlist"
+            ]
+            subprocess.run(cmd, check=True)
 
-        with open(output_path, "rb") as audio:
-            bot.send_audio(chat_id, audio)
+            # إرسال كـ voice note
+            with open(out_file, "rb") as audio:
+                bot.send_voice(chat_id, audio)
+        
+        bot.delete_message(chat_id, msg.message_id)
 
     except Exception as e:
-        bot.reply_to(message, "❌ حدث خطأ أثناء جلب الأغنية.")
-
-    finally:
-        try:
-            bot.delete_message(chat_id, temp_msg.message_id)
-        except:
-            pass
-
-        if os.path.exists(output_path):
-            os.remove(output_path)
+        bot.edit_message_text(f"❌ حدث خطأ أثناء جلب الصوت:\n{e}", chat_id, msg.message_id)

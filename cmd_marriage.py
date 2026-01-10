@@ -1,6 +1,7 @@
 # ملف: cmd_marriage.py
+import random
 import time
-from db_manager import _get_user, users, get_user_rank, set_user_rank
+from db_manager import _get_user, users
 
 COMMANDS = ["زوجني", "طلقني", "قائمة المتزوجين"]
 
@@ -16,49 +17,45 @@ def get_marriage(uid):
     return users.find_one({"$or": [{"husband_uid": uid}, {"wife_uid": uid}]})
 
 # ======================
-# أمر زوجني مع تحديد الشريك
+# أمر زوجني
 # ======================
 def marry_user(bot, message, target_identifier):
     user = _get_user(message.from_user.id)
+    
     if is_already_married(user["uid"]):
         bot.reply_to(message, "⚠️ أنت متزوج بالفعل!")
         return
 
-    # البحث عن الشريك بالـ ID أو username
-    partner = None
-    if target_identifier.startswith("@"):  # username
-        username = target_identifier[1:]
-        partner = users.find_one({"username": username})
-    else:  # على افتراض أنه ID
+    # البحث عن الشريك إما بالـ UID أو بالـ username
+    target_user = None
+    if target_identifier.startswith("@"):
+        target_user = users.find_one({"username": target_identifier[1:]})
+    else:
         try:
-            target_id = int(target_identifier)
-            partner = users.find_one({"uid": target_id})
+            target_uid = int(target_identifier)
+            target_user = _get_user(target_uid)
         except:
-            bot.reply_to(message, "⚠️ الرجاء إدخال ID صالح أو اسم مستخدم صحيح.")
+            bot.reply_to(message, "⚠️ الرجاء كتابة رقم UID صالح أو @username")
             return
 
-    if not partner:
-        bot.reply_to(message, "⚠️ هذا الشخص غير موجود.")
-        return
-    if is_already_married(partner["uid"]):
-        bot.reply_to(message, "⚠️ هذا الشخص متزوج بالفعل!")
-        return
-    if partner["uid"] == user["uid"]:
-        bot.reply_to(message, "⚠️ لا يمكنك الزواج بنفسك!")
+    if not target_user:
+        bot.reply_to(message, "⚠️ لم يتم العثور على المستخدم المطلوب.")
         return
 
-    # تسجيل الزواج
+    if is_already_married(target_user["uid"]):
+        bot.reply_to(message, "⚠️ هذا الشخص متزوج بالفعل!")
+        return
+
+    # تسجيل الزواج في MongoDB
     users.insert_one({
         "husband_uid": user["uid"],
-        "wife_uid": partner["uid"],
+        "wife_uid": target_user["uid"],
         "married_at": int(time.time())
     })
 
     bot.send_message(
         message.chat.id,
-        f"💍 تم الزواج بنجاح!\n"
-        f"👰 الزوج: {user.get('name','غير معروف')} (@{user.get('username','غير موجود')})\n"
-        f"🤵 الزوجة: {partner.get('name','غير معروف')} (@{partner.get('username','غير موجود')})"
+        f"💍 تم الزواج بنجاح بين:\n• {user['uid']} ({user.get('username', 'بدون اسم')})\n❤️\n• {target_user['uid']} ({target_user.get('username', 'بدون اسم')})"
     )
 
 # ======================
@@ -85,9 +82,9 @@ def list_married(bot, message):
 
     text = "💑 قائمة المتزوجين:\n"
     for m in all_marriages:
-        husband = users.find_one({"uid": m["husband_uid"]})
-        wife = users.find_one({"uid": m["wife_uid"]})
-        text += f"• {husband.get('name','غير معروف')} (@{husband.get('username','غير موجود')}) ❤️ {wife.get('name','غير معروف')} (@{wife.get('username','غير موجود')})\n"
+        husband = _get_user(m["husband_uid"])
+        wife = _get_user(m["wife_uid"])
+        text += f"• {husband['uid']} ({husband.get('username', 'بدون اسم')}) ❤️ {wife['uid']} ({wife.get('username', 'بدون اسم')})\n"
 
     bot.send_message(message.chat.id, text)
 
@@ -101,10 +98,16 @@ def handle(bot, message):
     text = message.text.strip()
     uid = message.from_user.id
 
-    if text.startswith("زوجني "):
-        target_identifier = text[6:].strip()
+    if text.startswith("زوجني"):
+        parts = text.split(maxsplit=1)
+        if len(parts) < 2:
+            bot.reply_to(message, "⚠️ الرجاء كتابة ID أو @username بعد 'زوجني'")
+            return
+        target_identifier = parts[1].strip()
         marry_user(bot, message, target_identifier)
-    elif text == "طلاقني":
+
+    elif text == "طلقني":
         divorce(bot, message)
+
     elif text == "قائمة المتزوجين":
         list_married(bot, message)

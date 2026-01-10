@@ -5,9 +5,10 @@ import traceback
 import db_manager
 import sys
 
-# ======================
+# =====================
 # الإعدادات
-# ======================
+# =====================
+
 TOKEN = os.getenv("BOT_TOKEN")  # لازم يكون موجود في البيئة
 DEV_ID = 5860391324
 BOT_ENABLED = True  # متغير عالمي لتشغيل/إطفاء البوت
@@ -21,9 +22,10 @@ cmd_modules = {}
 game_modules = {}
 module_errors = {}
 
-# ======================
+# =====================
 # تحميل الموديولات
-# ======================
+# =====================
+
 def load_modules():
     global cmd_modules, game_modules, module_errors
 
@@ -57,29 +59,39 @@ def load_modules():
             except:
                 pass
 
-# تحميل الموديولات عند بدء التشغيل
-load_modules()
+# =====================
+# أوامر البوت
+# =====================
 
-# ======================
-# أوامر أساسية
-# ======================
 @bot.message_handler(commands=["start"])
 def start(message):
-    bot.send_message(message.chat.id, "أهلًا بك! البوت شغال 🚀")
+    bot.reply_to(message, "مرحبا! البوت شغال 🎉")
 
-# ======================
-# أمر إعادة تشغيل البوت
-# ======================
 @bot.message_handler(commands=["restart"])
 def restart_bot(message):
     if message.from_user.id != DEV_ID:
-        bot.send_message(message.chat.id, "❌ هذا الأمر للمطور فقط.")
+        bot.reply_to(message, "❌ هذا الأمر للمطور فقط.")
         return
-    bot.send_message(message.chat.id, "🔄 جارٍ إعادة تشغيل البوت...")
-    os.execv(sys.executable, ['python'] + sys.argv)  # يعيد تشغيل البوت نفسه
+    bot.reply_to(message, "🔄 جاري إعادة تشغيل البوت...")
+    python = sys.executable
+    os.execl(python, python, * sys.argv)
 
-# ======================
-# تشغيل البوت
-# ======================
-print("✅ البوت شغال الآن!")
-bot.infinity_polling()
+# =====================
+# تمرير الرسائل للموديولات
+# =====================
+
+@bot.message_handler(func=lambda m: True)
+def handle_commands(message):
+    for module_name, module in cmd_modules.items():
+        try:
+            module.handle(bot, message)
+        except Exception as e:
+            bot.send_message(DEV_ID, f"⚠️ خطأ عند تنفيذ {module_name}:\n{e}")
+
+# =====================
+# بدء البوت
+# =====================
+
+if __name__ == "__main__":
+    load_modules()
+    bot.polling(none_stop=True)

@@ -1,70 +1,69 @@
 # ملف: cmd_youtube.py
-import os
-import io
 import telebot
 from pytube import YouTube
-from youtubesearchpython import VideosSearch
+from youtube_search import YoutubeSearch
 import requests
+from io import BytesIO
 
 COMMANDS = ["يوت"]
 
 def handle(bot, message):
-    text = message.text.strip()
-    if not text.lower().startswith("يوت "):
+    text = message.text
+    chat_id = message.chat.id
+
+    if not text.startswith("يوت "):
         return
 
     query = text[4:].strip()
-    chat_id = message.chat.id
-
     if not query:
         bot.reply_to(message, "❌ اكتب اسم الأغنية بعد 'يوت'")
         return
 
-    msg = bot.send_message(chat_id, f"🔍 جاري البحث عن: {query}...")
     try:
-        videos_search = VideosSearch(query, limit=1)
-        result = videos_search.result()
-        if not result['result']:
-            bot.edit_message_text("❌ لم يتم العثور على الأغنية.", chat_id, msg.message_id)
+        # البحث عن الفيديو
+        results = YoutubeSearch(query, max_results=1).to_dict()
+        if not results:
+            bot.reply_to(message, "❌ ما حصلت أي أغنية لهذا الاسم.")
             return
 
-        video = result['result'][0]
+        video = results[0]
+        video_url = f"https://www.youtube.com{video['url_suffix']}"
         title = video['title']
-        duration = video.get('duration', "غير معروف")
-        thumbnail_url = video['thumbnails'][0]['url']
-        video_url = video['link']
+        thumbnail_url = video['thumbnails'][0]
 
-        # تحميل صورة الأغنية
-        response = requests.get(thumbnail_url)
-        img_bytes = io.BytesIO(response.content)
-
-        # تحميل الصوت بصيغة MP3
-        yt = YouTube(video_url)
-        stream = yt.streams.filter(only_audio=True).first()
-        audio_file = stream.download(filename=f"{yt.video_id}.mp4")
-        mp3_file = f"{yt.video_id}.mp3"
-
-        # تحويل MP4 إلى MP3 (إذا كان ffmpeg موجود)
+        # تحميل الصورة
         try:
-            import moviepy.editor as mp
-            clip = mp.AudioFileClip(audio_file)
-            clip.write_audiofile(mp3_file)
-            clip.close()
+            thumb_data = requests.get(thumbnail_url, timeout=10).content
+            thumb_file = BytesIO(thumb_data)
+            thumb_file.name = "thumb.jpg"
         except:
-            mp3_file = audio_file  # fallback للملف الأصلي إذا لم يكن ffmpeg موجود
+            thumb_file = None
 
-        # إرسال الأغنية
-        bot.edit_message_text(f"🎵 تم العثور على الأغنية: {title}\n⏱ المدة: {duration}", chat_id, msg.message_id)
-        bot.send_photo(chat_id, img_bytes, caption=f"🎶 {title}")
-        bot.send_audio(chat_id, open(mp3_file, "rb"))
-
-        # حذف الملفات المؤقتة
+        # تحميل الصوت (MP4) بشكل خفيف
         try:
-            os.remove(audio_file)
-            if os.path.exists(mp3_file):
-                os.remove(mp3_file)
-        except:
-            pass
+            yt = YouTube(video_url)
+            stream = yt.streams.filter(only_audio=True, file_extension="mp4").first()
+            if not stream:
+                bot.reply_to(message, "❌ ما قدر أحصل الصوت.")
+                return
+            # الحد الأقصى لحجم الملف: 15 ميجا (Railway غالبًا يسمح)
+            if stream.filesize_approx and stream.filesize_approx > 15*1024*1024:
+                bot.reply_to(message, "❌ حجم الأغنية كبير جدًا، حاول بأغنية أصغر.")
+                return
+            audio_data = stream.stream_to_buffer()
+            audio_data.seek(0)
+        except Exception as e:
+            bot.reply_to(message, f"❌ حدث خطأ أثناء تحميل الصوت:\n{e}")
+            return
+
+        # إرسال الصورة + الصوت
+        caption = f"🎵 {title}\n📎 [رابط اليوتيوب]({video_url})"
+        if thumb_file:
+            bot.send_photo(chat_id, thumb_file, caption=caption, parse_mode="Markdown")
+        else:
+            bot.send_message(chat_id, caption, parse_mode="Markdown")
+
+        bot.send_audio(chat_id, audio_data, title=title)
 
     except Exception as e:
-        bot.edit_message_text(f"❌ حدث خطأ أثناء البحث عن الأغنية:\n{str(e)}", chat_id, msg.message_id)
+        bot.reply_to(message, f"❌ حدث خطأ:\n{e}")

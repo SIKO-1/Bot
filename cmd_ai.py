@@ -1,47 +1,38 @@
-import telebot
-from telebot.types import Message
-import db_manager
-import openai  # تحتاج مفتاح OpenAI API في متغير البيئة OPENAI_API_KEY
+# cmd_ai.py
 import os
-import traceback
+import telebot
+import openai
 
-# ======================
-# إعداد OpenAI
-# ======================
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_KEY:
-    print("❌ OpenAI API key غير موجودة")
+    raise RuntimeError("❌ ضع OPENAI_API_KEY في البيئة")
+
 openai.api_key = OPENAI_KEY
 
-# ======================
-# المساعد الذكي
-# ======================
-def handle(bot: telebot.TeleBot, message: Message):
+def handle(bot, message):
     chat_id = message.chat.id
-    user_id = message.from_user.id
-    text = message.text.strip() if message.text else None
+    uid = message.from_user.id
+    text = message.text
 
-    # فقط الرسائل النصية
+    # فقط نصوص
     if not text:
         return
 
-    # تحقق من تفعيل AI في المجموعة (افتراضياً مفعل)
-    ai_enabled = db_manager.get_ai_enabled(chat_id)
-    if not ai_enabled:
-        return
-
-    # رد على المستخدم بأسلوب إمبراطوري وفلسفي
     try:
-        prompt = f"أنت إمبراطور حكيم وفلسفي. أجب على المستخدم بطريقة عميقة وملهمة:\n\n{message.from_user.first_name}: {text}\nإجابتك:"
-        response = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=prompt,
-            max_tokens=250,
-            temperature=0.8,
+        bot.send_chat_action(chat_id, "typing")
+
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "أنت مساعد ذكي ومتطور بأسلوب الإمبراطور."},
+                {"role": "user", "content": text}
+            ],
+            temperature=0.7,
+            max_tokens=500
         )
-        answer = response.choices[0].text.strip()
-        if answer:
-            bot.reply_to(message, f"👑 الإمبراطور: {answer}")
+
+        answer = response.choices[0].message.content.strip()
+        bot.send_message(chat_id, f"🤖 الإمبراطور يقول:\n{answer}")
+
     except Exception as e:
-        traceback.print_exc()
-        bot.reply_to(message, f"⚠️ حدث خطأ أثناء الرد: {str(e)}")
+        bot.send_message(chat_id, f"❌ حدث خطأ أثناء الرد: {e}")

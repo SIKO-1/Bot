@@ -1,12 +1,12 @@
 # ملف: cmd_youtube.py
 import os
-import tempfile
-from pytube import Search, YouTube
+from youtubesearchpython import VideosSearch
+from pytube import YouTube
 from telebot import types
 
 COMMANDS = ["يوت"]
 
-def handle(bot, message):
+def handle(bot, message, *args):
     text = message.text.strip()
     if not text.lower().startswith("يوت "):
         return
@@ -16,30 +16,40 @@ def handle(bot, message):
         bot.reply_to(message, "❌ اكتب اسم الأغنية بعد 'يوت'")
         return
 
-    msg = bot.send_message(message.chat.id, "🔎 جارٍ البحث عن الأغنية...")
+    msg = bot.send_message(message.chat.id, "🔎 جاري البحث عن الأغنية...")
     try:
-        search = Search(query)
-        result = search.results[0]  # أول نتيجة
+        # البحث عن الفيديو
+        videos = VideosSearch(query, limit=1)
+        result = videos.result()['result'][0]
 
-        yt = YouTube(result.watch_url)
-        title = yt.title
-        thumbnail_url = yt.thumbnail_url
+        title = result['title']
+        thumbnail = result['thumbnails'][0]['url']
+        url = result['link']
 
-        # حفظ الصوت مؤقتاً
-        temp_dir = tempfile.gettempdir()
+        # تنزيل الصوت
+        yt = YouTube(url)
         audio_stream = yt.streams.filter(only_audio=True).first()
-        file_path = os.path.join(temp_dir, f"{title}.mp3")
-        audio_stream.download(output_path=temp_dir, filename=f"{title}.mp3")
 
-        # إرسال الصورة + الصوت + عنوان الإمبراطور
-        caption = f"🎵 **{title}**\n👑 تم جلب الأغنية بأسلوب الإمبراطور!"
-        bot.send_photo(message.chat.id, thumbnail_url, caption=caption, parse_mode="Markdown")
+        safe_title = "".join(c for c in title if c.isalnum() or c in " -_")
+        file_path = f"{safe_title}.mp3"
+        audio_stream.download(filename=file_path)
+
+        # إرسال الصورة مع العنوان
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🔊 تحميل MP3", callback_data="noop"))
+        bot.send_photo(
+            message.chat.id,
+            photo=thumbnail,
+            caption=f"🎵 {title}\n📎 الرابط: {url}",
+            reply_markup=markup
+        )
+
+        # إرسال الملف الصوتي
         with open(file_path, "rb") as f:
             bot.send_audio(message.chat.id, f, title=title)
 
-        os.remove(file_path)  # تنظيف الملف بعد الإرسال
+        os.remove(file_path)  # حذف الملف بعد الإرسال
         bot.delete_message(message.chat.id, msg.message_id)
 
     except Exception as e:
-        bot.delete_message(message.chat.id, msg.message_id)
-        bot.reply_to(message, f"❌ حدث خطأ أثناء البحث عن الأغنية:\n{e}")
+        bot.edit_message_text(chat_id=message.chat.id, message_id=msg.message_id, text=f"❌ حدث خطأ: {e}")

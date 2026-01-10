@@ -4,11 +4,11 @@ import importlib.util
 import traceback
 import db_manager
 
-======================
+#======================
 
-الإعدادات
+#الإعدادات
 
-======================
+#======================
 
 TOKEN = os.getenv("BOT_TOKEN")  # لازم يكون موجود في البيئة
 DEV_ID = 5860391324
@@ -23,11 +23,11 @@ cmd_modules = {}
 game_modules = {}
 module_errors = {}
 
-======================
+#======================
 
-تحميل الموديولات
+#تحميل الموديولات
 
-======================
+#======================
 
 def load_modules():
 global cmd_modules, game_modules, module_errors
@@ -62,11 +62,11 @@ for filename in os.listdir(base_path):
         except:  
             pass
 
-======================
+#======================
 
-أمر start
+# أمر start
 
-======================
+#======================
 
 @bot.message_handler(commands=["start"])
 def start(message):

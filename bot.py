@@ -74,7 +74,7 @@ def restart_bot(message):
         return
     bot.reply_to(message, "🔄 جاري إعادة تشغيل البوت...")
     python = sys.executable
-    os.execl(python, python, * sys.argv)
+    os.execl(python, python, *sys.argv)
 
 # =====================
 # تمرير الرسائل للموديولات

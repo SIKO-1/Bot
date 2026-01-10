@@ -2,3 +2,5 @@ pyTelegramBotAPI
 pytube
 youtube-search-python
 requests
+pymongo
+dnspython

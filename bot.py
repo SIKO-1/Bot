@@ -3,6 +3,7 @@ import telebot
 import importlib.util
 import traceback
 import db_manager
+from telebot.types import ChatMember   # ⬅️ إضافة فقط
 
 # ======================
 # الإعدادات
@@ -79,17 +80,14 @@ def handle_all_messages(message):
         load_modules()
         reply_text = "🔄 تم تحديث الموديولات\n\n"
 
-        # عرض الموديولات CMD
         reply_text += "✅ CMD:\n"
         for name in cmd_modules.keys():
             reply_text += name + "\n"
 
-        # عرض الموديولات GAME
         reply_text += "\n🎮 GAME:\n"
         for name in game_modules.keys():
             reply_text += name + "\n"
 
-        # عرض الأخطاء
         if module_errors:
             reply_text += "\n⚠️ أخطاء:\n"
             for fname, err in module_errors.items():
@@ -118,10 +116,8 @@ def handle_all_messages(message):
         bot.reply_to(message, f"✅ تم إرسال الرسالة إلى {count} مستخدمين!")
         return
 
-    # تنفيذ باقي الموديولات
     for name, module in cmd_modules.items():
         try:
-            # تحقق من عدد البراميتر المطلوبة
             if hasattr(module.handle, "__code__") and module.handle.__code__.co_argcount == 5:
                 module.handle(bot, message, cmd_modules, game_modules, module_errors)
             else:
@@ -143,6 +139,55 @@ def handle_all_messages(message):
                 bot.send_message(DEV_ID, f"⚠️ خطأ في تنفيذ الموديول {name}:\n{e}")
             except:
                 pass
+
+# ======================
+# ⬇️⬇️ الإضافات فقط (حُرّاس الصور والملصقات)
+# ======================
+
+def is_admin(bot, chat_id, user_id):
+    try:
+        member = bot.get_chat_member(chat_id, user_id)
+        return member.status in ["administrator", "creator"]
+    except:
+        return False
+
+
+@bot.message_handler(content_types=["photo"])
+def block_photos(message):
+    chat_id = message.chat.id
+
+    if message.chat.type == "private":
+        return
+
+    if db_manager.photos_allowed(chat_id):
+        return
+
+    if is_admin(bot, chat_id, message.from_user.id):
+        return
+
+    try:
+        bot.delete_message(chat_id, message.message_id)
+    except:
+        pass
+
+
+@bot.message_handler(content_types=["sticker"])
+def block_stickers(message):
+    chat_id = message.chat.id
+
+    if message.chat.type == "private":
+        return
+
+    if db_manager.stickers_allowed(chat_id):
+        return
+
+    if is_admin(bot, chat_id, message.from_user.id):
+        return
+
+    try:
+        bot.delete_message(chat_id, message.message_id)
+    except:
+        pass
 
 # ======================
 # تشغيل البوت

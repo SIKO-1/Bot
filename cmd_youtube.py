@@ -26,14 +26,19 @@ def search_youtube(query):
     return f"ytsearch1:{safe_query}"
 
 def download_audio(query, chat_id):
-    tmpdir = tempfile.mkdtemp()  # نستخدم mkdtemp بدلاً من with
+    tmpdir = tempfile.mkdtemp(prefix="ytmp3_")  # مجلد مؤقت ثابت
     mp3_path = os.path.join(tmpdir, f"{chat_id}.mp3")
     YDL_OPTS["outtmpl"] = mp3_path
     try:
         with YoutubeDL(YDL_OPTS) as ydl:
             info = ydl.extract_info(search_youtube(query), download=True)
-            title = info["entries"][0]["title"] if "entries" in info else info.get("title")
-            thumbnail = info["entries"][0]["thumbnail"] if "entries" in info else info.get("thumbnail")
+            if "entries" in info:
+                entry = info["entries"][0]
+                title = entry.get("title")
+                thumbnail = entry.get("thumbnail")
+            else:
+                title = info.get("title")
+                thumbnail = info.get("thumbnail")
         return mp3_path, title, thumbnail, tmpdir
     except Exception as e:
         shutil.rmtree(tmpdir, ignore_errors=True)
@@ -48,23 +53,23 @@ def handle(bot, message, cmd_modules=None, game_modules=None, module_errors=None
 
     query = text[4:].strip()
     if not query:
-        bot.reply_to(chat_id, "❌ اكتب اسم الأغنية بعد 'يوت'")
+        bot.reply_to(message, "❌ اكتب اسم الأغنية بعد 'يوت'")
         return
 
     sent_msg = bot.send_message(chat_id, "👑 الإمبراطور يبحث ويجهّز MP3...")
 
     mp3_path, title, thumbnail, tmpdir = download_audio(query, chat_id)
 
-    if not mp3_path:
+    if not mp3_path or not os.path.isfile(mp3_path):
         bot.edit_message_text("❌ حدث خطأ أثناء جلب الأغنية.", chat_id, sent_msg.message_id)
         return
 
-    caption = f"🎵 {title}"
+    caption = f"🎵 {title}" if title else "🎵 أغنية جاهزة"
 
     # إرسال الغلاف أولاً
     if thumbnail:
         try:
-            bot.send_photo(chat_id, thumbnail)
+            bot.send_photo(chat_id, thumbnail, caption=caption)
         except:
             pass
 

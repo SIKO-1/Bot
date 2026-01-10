@@ -1,5 +1,4 @@
 pyTelegramBotAPI
 pytube
 youtube-search-python
-moviepy
 requests

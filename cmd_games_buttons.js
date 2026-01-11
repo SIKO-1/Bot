@@ -1,10 +1,8 @@
-# cmd_games_buttons.py
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+// ملف: cmd_games_buttons.js
+const COMMANDS = ["الالعاب", "العاب", "لعبات"];
 
-COMMANDS = ["الالعاب", "العاب", "لعبات"]
-
-# قائمة كل الألعاب + وصفها
-GAMES = {
+// قائمة كل الألعاب + وصفها
+const GAMES = {
     "نرد": "لعبة رمي النرد الإمبراطوري",
     "روليت": "لعبة الروليت الإمبراطوري",
     "المختلف": "لعبة المختلف",
@@ -37,34 +35,57 @@ GAMES = {
     "رقم": "لعبة أرقام عشوائية",
     "المليون": "لعبة من سيربح المليون",
     "نشط عقلك": "لعبة أسئلة منوعة"
-}
+};
 
-def handle(bot, message):
-    if message.text not in COMMANDS:
-        return
+// ======================
+// عرض الألعاب + أزرار Inline
+// ======================
+function handle(bot, msg) {
+    if (!msg.text) return;
+    if (!COMMANDS.includes(msg.text.trim())) return;
 
-    kb = InlineKeyboardMarkup(row_width=2)
-    for game in GAMES.keys():
-        kb.add(InlineKeyboardButton(game, callback_data=f"game_{game}"))
+    const userName = msg.from.first_name || "المستخدم";
 
-    text = f"""
+    const text = `
 ╔═════════════════╗
       الألعاب الإمبراطورية
 ╚═════════════════╝
 
-مرحباً بك يا {message.from_user.first_name} 👑
+مرحباً بك يا ${userName} 👑
 ━━━━━━━━━━━━━━━
 اضغط على أي لعبة لمعرفة معلوماتها:
-"""
+`;
 
-    bot.send_message(message.chat.id, text, reply_markup=kb)
+    // تجهيز الأزرار كل 2 أزرار في صف
+    const buttons = [];
+    const gameNames = Object.keys(GAMES);
+    for (let i = 0; i < gameNames.length; i += 2) {
+        const row = [];
+        row.push({ text: gameNames[i], callback_data: `game_${gameNames[i]}` });
+        if (gameNames[i + 1]) {
+            row.push({ text: gameNames[i + 1], callback_data: `game_${gameNames[i + 1]}` });
+        }
+        buttons.push(row);
+    }
 
+    bot.sendMessage(msg.chat.id, text, {
+        reply_markup: { inline_keyboard: buttons }
+    });
+}
 
-def register_callbacks(bot):
+// ======================
+// الرد على الضغط على زر اللعبة
+// ======================
+function registerCallbacks(bot) {
+    bot.on('callback_query', async (call) => {
+        if (!call.data.startsWith("game_")) return;
 
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("game_"))
-    def game_info(call):
-        game_name = call.data.replace("game_", "")
-        description = GAMES.get(game_name, "❌ معلومات غير موجودة لهذه اللعبة")
-        bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, f"🎮 {game_name}:\n{description}")
+        const gameName = call.data.replace("game_", "");
+        const description = GAMES[gameName] || "❌ معلومات غير موجودة لهذه اللعبة";
+
+        await bot.answerCallbackQuery(call.id);
+        bot.sendMessage(call.message.chat.id, `🎮 ${gameName}:\n${description}`);
+    });
+}
+
+module.exports = { handle, registerCallbacks };

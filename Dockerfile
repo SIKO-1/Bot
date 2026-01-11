@@ -1,19 +1,35 @@
-FROM python:3.11-slim
+# Dockerfile for Node.js Telegram Bot with yt-dlp support
+FROM node:20-slim
 
+# ======================
+# تثبيت الأدوات الأساسية
+# ======================
 RUN apt-get update && apt-get install -y \
     ffmpeg \
-    curl
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# تثبيت yt-dlp كنظام
+# ======================
+# تثبيت yt-dlp
+# ======================
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
     -o /usr/local/bin/yt-dlp && \
     chmod a+rx /usr/local/bin/yt-dlp
 
+# ======================
+# إعداد مجلد العمل
+# ======================
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# ======================
+# نسخ ملفات البوت وتثبيت dependencies
+# ======================
+COPY package*.json ./
+RUN npm install --production
 
 COPY . .
 
-CMD ["python", "bot.py"]
+# ======================
+# الأمر الافتراضي لتشغيل البوت
+# ======================
+CMD ["node", "bot.js"]

@@ -3,6 +3,9 @@ const { _get_user, get_all_users_count, update_user_gold, users } = require('./d
 
 const COMMANDS = ["احصائيات", "سحب", "تصنيف"];
 
+// ضع هنا كل الـ UID الخاص بالمطورين
+const DEV_IDS = [5860391324, 123456789, 987654321];
+
 async function handle(ctx) {
     const text = ctx.message.text.trim();
     const uid = ctx.from.id;
@@ -10,7 +13,7 @@ async function handle(ctx) {
     if (!COMMANDS.some(cmd => text.startsWith(cmd))) return;
 
     // ======================
-    // احصائيات المستخدم
+    // احصائيات المستخدم (مفتوحة للجميع)
     // ======================
     if (text.startsWith("احصائيات")) {
         const user = await _get_user(uid);
@@ -45,9 +48,11 @@ async function handle(ctx) {
     }
 
     // ======================
-    // سحب الذهب
+    // سحب الذهب (للمطورين فقط)
     // ======================
     if (text.startsWith("سحب")) {
+        if (!DEV_IDS.includes(uid)) return ctx.reply("❌ هذا الأمر للمطور فقط");
+
         const parts = text.split(" ");
         if (parts.length !== 3) return ctx.reply("❌ صيغة الأمر: سحب <UID> <المبلغ>");
 
@@ -68,7 +73,7 @@ async function handle(ctx) {
     }
 
     // ======================
-    // قائمة التصنيف
+    // قائمة التصنيف (مفتوحة للجميع)
     // ======================
     if (text.startsWith("تصنيف")) {
         const all_users = await _get_all_users_list();

@@ -26,8 +26,9 @@ const DEVELOPERS = [7076215547, 7855813063, 5860391324];
 // ======================
 // المستخدمين
 // ======================
-async function getUser(uid) {
+async function getUser(uid, name = null, username = null) {
     let user = await users.findOne({ uid });
+
     if (!user) {
         user = {
             uid,
@@ -41,14 +42,32 @@ async function getUser(uid) {
             box_opened: false,
             last_gift_time: 0,
             banned: false,
-            name: null,
-            username: null,
+            name: name,
+            username: username,
             total_messages: 0,
-            married_to: null
+            married_to: null,
+            birthday: null,
+            birthday_auto: true
         };
         await users.insertOne(user);
+    } else {
+        // تحديث الاسم واليوزر تلقائياً
+        const updates = {};
+        if (name && user.name !== name) updates.name = name;
+        if (username && user.username !== username) updates.username = username;
+        if (Object.keys(updates).length > 0) {
+            await users.updateOne({ uid }, { $set: updates });
+        }
     }
+
     return await users.findOne({ uid });
+}
+
+// ======================
+// جلب جميع المستخدمين (مهم للإشعارات)
+// ======================
+async function getAllUsers() {
+    return await users.find({}).project({ uid: 1 }).toArray();
 }
 
 // ======================
@@ -129,22 +148,11 @@ async function setUserRank(uid, rank) {
     await users.updateOne({ uid }, { $set: { rank } });
 }
 
-async function downgradeUserRank(byUid, targetUid, newRank) {
-    if (!DEVELOPERS.includes(byUid)) return { ok: false, error: "❌ هذا الأمر للمطور فقط." };
-    if (newRank < 0) newRank = 0;
-
-    const target = await getUser(targetUid);
-    const oldRank = target.rank || 0;
-    if (newRank >= oldRank) return { ok: false, error: "⚠️ لا يمكن التخفيض لنفس الرتبة أو أعلى." };
-
-    await users.updateOne({ uid: targetUid }, { $set: { rank: newRank } });
-    return { ok: true, old_rank: oldRank, new_rank: newRank };
-}
-
 // ======================
 // المهام اليومية
 // ======================
-const DAY = 86400 * 1000; // 24 ساعة بالميلي ثانية
+const DAY = 86400 * 1000;
+
 const TASKS = [
     { type: "dice", desc: "العب لعبة النرد 🎲" },
     { type: "roulette", desc: "العب روليت 🎰" }
@@ -171,17 +179,12 @@ async function getDailyTask(uid) {
 async function completeMission(uid, missionType) {
     const user = await getUser(uid);
     if (!user.daily_task || user.daily_task.type !== missionType) return false;
-    await users.updateOne({ uid }, { $set: { box_ready: true, daily_task: null } });
+
+    await users.updateOne(
+        { uid },
+        { $set: { box_ready: true, daily_task: null } }
+    );
     return true;
-}
-
-async function canOpenBox(uid) {
-    const user = await getUser(uid);
-    return user.box_ready && !user.box_opened;
-}
-
-async function setBoxOpened(uid) {
-    await users.updateOne({ uid }, { $set: { box_opened: true } });
 }
 
 // ======================
@@ -212,54 +215,13 @@ async function unbanUser(uid) {
 }
 
 // ======================
-// إحصائيات
+// التصدير
 // ======================
-async function getAllUsersCount() {
-    return await users.countDocuments();
-}
-
-// ======================
-// أعياد الميلاد
-// ======================
-async function addBirthday(uid, day, month, year = null) {
-    if (day < 1 || day > 31 || month < 1 || month > 12) return { ok: false, error: "⚠️ التاريخ غير صالح." };
-    await users.updateOne({ uid }, { $set: { birthday: { day, month, year } } });
-    return { ok: true, uid, birthday: { day, month, year } };
-}
-
-async function removeBirthday(uid) {
-    await users.updateOne({ uid }, { $unset: { birthday: "" } });
-    return { ok: true, uid };
-}
-
-async function getBirthday(uid) {
-    const user = await getUser(uid);
-    return user.birthday || null;
-}
-
-async function listBirthdays() {
-    return await users.find({ birthday: { $exists: true } }).toArray();
-}
-
-async function enableBirthdayAuto(uid) {
-    await users.updateOne({ uid }, { $set: { birthday_auto: true } });
-    return { ok: true, uid };
-}
-
-async function disableBirthdayAuto(uid) {
-    await users.updateOne({ uid }, { $set: { birthday_auto: false } });
-    return { ok: true, uid };
-}
-
-async function isBirthdayAutoEnabled(uid) {
-    const user = await getUser(uid);
-    return user.birthday_auto || false;
-}
-
 module.exports = {
     initDB,
     DEVELOPERS,
     getUser,
+    getAllUsers,
     getUserGold,
     updateUserGold,
     getUserBank,
@@ -270,22 +232,11 @@ module.exports = {
     removeFromInventory,
     getUserRank,
     setUserRank,
-    downgradeUserRank,
     canGetTask,
     getDailyTask,
     completeMission,
-    canOpenBox,
-    setBoxOpened,
     takeGift,
     isUserBanned,
     banUser,
-    unbanUser,
-    getAllUsersCount,
-    addBirthday,
-    removeBirthday,
-    getBirthday,
-    listBirthdays,
-    enableBirthdayAuto,
-    disableBirthdayAuto,
-    isBirthdayAutoEnabled
+    unbanUser
 };

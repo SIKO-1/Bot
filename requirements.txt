@@ -1,4 +1,0 @@
-pyTelegramBotAPI
-pymongo
-dnspython
-yt-dlp

@@ -74,44 +74,6 @@ def start(message):
     bot.reply_to(message, "👑 البوت شغال.")
 
 # ======================
-# حظر الصور
-# ======================
-@bot.message_handler(content_types=["photo"])
-def handle_photos(message):
-    if message.chat.type == "private":
-        return
-    if db_manager.is_photos_allowed(message.chat.id):
-        return
-    if is_admin(message.chat.id, message.from_user.id):
-        return
-    try:
-        bot.delete_message(message.chat.id, message.message_id)
-    except:
-        pass
-
-# ======================
-# حظر الملصقات
-# ======================
-@bot.message_handler(content_types=["sticker"])
-def handle_stickers(message):
-    if message.chat.type == "private":
-        return
-    if db_manager.is_stickers_allowed(message.chat.id):
-        return
-    if is_admin(message.chat.id, message.from_user.id):
-        return
-    try:
-        bot.delete_message(message.chat.id, message.message_id)
-    except:
-        pass
-
-# ======================
-# متغيرات مؤقتة للموديولات (مثل همسة)
-# ======================
-if not hasattr(bot, "waiting_private"):
-    bot.waiting_private = {}  # bot.waiting_private[sender_id] = target_id
-
-# ======================
 # الرسائل النصية
 # ======================
 @bot.message_handler(func=lambda m: m.text is not None)
@@ -121,7 +83,7 @@ def handle_text(message):
     text = message.text.strip()
 
     # تحديث الموديولات
-    if text == "تحديث" and uid == DEV_ID:
+    if text.lower() == "تحديث" and uid == DEV_ID:
         load_modules()
         reply = "🔄 تم تحديث الموديولات\n\n✅ CMD:\n"
         for m in cmd_modules:
@@ -141,42 +103,27 @@ def handle_text(message):
         bot.reply_to(message, "♻️ يتم إعادة تشغيل البوت...")
         os.execv(sys.executable, [sys.executable] + sys.argv)
 
-    # إعدادات الصور والملصقات
-    if text in ["تعطيل الصور", "تفعيل الصور", "تعطيل الملصقات", "تفعيل الملصقات"]:
-        if message.chat.type == "private":
-            return
-        if not is_admin(chat_id, uid):
-            bot.reply_to(message, "❌ فقط مالك المجموعة والمشرفين يمكنهم تعديل الإعدادات.")
-            return
-        if text == "تعطيل الصور":
-            db_manager.set_photos_allowed(chat_id, False)
-            bot.reply_to(message, "🚫 تم تعطيل الصور.")
-        elif text == "تفعيل الصور":
-            db_manager.set_photos_allowed(chat_id, True)
-            bot.reply_to(message, "✅ تم تفعيل الصور.")
-        elif text == "تعطيل الملصقات":
-            db_manager.set_stickers_allowed(chat_id, False)
-            bot.reply_to(message, "🚫 تم تعطيل الملصقات.")
-        elif text == "تفعيل الملصقات":
-            db_manager.set_stickers_allowed(chat_id, True)
-            bot.reply_to(message, "✅ تم تفعيل الملصقات.")
-        return
-
     # تمرير الرسائل لبقية الموديولات
     for module in cmd_modules.values():
         try:
             module.handle(bot, message)
-        except:
-            pass
+        except Exception as e:
+            try:
+                bot.send_message(DEV_ID, f"⚠️ خطأ في تنفيذ الموديول {module}:\n{e}")
+            except:
+                pass
 
     for module in game_modules.values():
         try:
             module.handle(bot, message)
-        except:
-            pass
+        except Exception as e:
+            try:
+                bot.send_message(DEV_ID, f"⚠️ خطأ في تنفيذ الموديول {module}:\n{e}")
+            except:
+                pass
 
 # ======================
-# الرسائل في الخاص للموديولات
+# الرسائل الخاصة للموديولات
 # ======================
 @bot.message_handler(func=lambda m: m.chat.type == "private")
 def handle_private_messages(m):
@@ -188,7 +135,7 @@ def handle_private_messages(m):
                 pass
 
 # ======================
-# التعامل مع أزرار Inline
+# أزرار Inline للموديولات
 # ======================
 @bot.callback_query_handler(func=lambda c: True)
 def handle_callbacks(c):

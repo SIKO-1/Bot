@@ -80,13 +80,10 @@ def start(message):
 def handle_photos(message):
     if message.chat.type == "private":
         return
-
     if db_manager.is_photos_allowed(message.chat.id):
         return
-
     if is_admin(message.chat.id, message.from_user.id):
         return
-
     try:
         bot.delete_message(message.chat.id, message.message_id)
     except:
@@ -99,20 +96,23 @@ def handle_photos(message):
 def handle_stickers(message):
     if message.chat.type == "private":
         return
-
     if db_manager.is_stickers_allowed(message.chat.id):
         return
-
     if is_admin(message.chat.id, message.from_user.id):
         return
-
     try:
         bot.delete_message(message.chat.id, message.message_id)
     except:
         pass
 
 # ======================
-# الأوامر النصية
+# متغيرات مؤقتة للموديولات (مثل همسة)
+# ======================
+if not hasattr(bot, "waiting_private"):
+    bot.waiting_private = {}  # bot.waiting_private[sender_id] = target_id
+
+# ======================
+# الرسائل النصية
 # ======================
 @bot.message_handler(func=lambda m: m.text is not None)
 def handle_text(message):
@@ -120,9 +120,7 @@ def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
 
-    # ======================
-    # تحديث
-    # ======================
+    # تحديث الموديولات
     if text == "تحديث" and uid == DEV_ID:
         load_modules()
         reply = "🔄 تم تحديث الموديولات\n\n✅ CMD:\n"
@@ -131,27 +129,25 @@ def handle_text(message):
         reply += "\n🎮 GAME:\n"
         for g in game_modules:
             reply += g + "\n"
+        if module_errors:
+            reply += "\n⚠️ أخطاء:\n"
+            for fname, err in module_errors.items():
+                reply += f"• {fname}: {err}\n"
         bot.reply_to(message, reply)
         return
 
-    # ======================
     # ريست البوت
-    # ======================
     if text in ["ريست", "إعادة تشغيل"] and uid == DEV_ID:
         bot.reply_to(message, "♻️ يتم إعادة تشغيل البوت...")
         os.execv(sys.executable, [sys.executable] + sys.argv)
 
-    # ======================
-    # إعدادات المجموعات
-    # ======================
+    # إعدادات الصور والملصقات
     if text in ["تعطيل الصور", "تفعيل الصور", "تعطيل الملصقات", "تفعيل الملصقات"]:
         if message.chat.type == "private":
             return
-
         if not is_admin(chat_id, uid):
             bot.reply_to(message, "❌ فقط مالك المجموعة والمشرفين يمكنهم تعديل الإعدادات.")
             return
-
         if text == "تعطيل الصور":
             db_manager.set_photos_allowed(chat_id, False)
             bot.reply_to(message, "🚫 تم تعطيل الصور.")
@@ -166,9 +162,7 @@ def handle_text(message):
             bot.reply_to(message, "✅ تم تفعيل الملصقات.")
         return
 
-    # ======================
-    # تمرير لباقي CMD
-    # ======================
+    # تمرير الرسائل لبقية الموديولات
     for module in cmd_modules.values():
         try:
             module.handle(bot, message)
@@ -182,6 +176,30 @@ def handle_text(message):
             pass
 
 # ======================
-# تشغيل
+# الرسائل في الخاص للموديولات
+# ======================
+@bot.message_handler(func=lambda m: m.chat.type == "private")
+def handle_private_messages(m):
+    for module in cmd_modules.values():
+        if hasattr(module, "handle_private"):
+            try:
+                module.handle_private(bot, m)
+            except:
+                pass
+
+# ======================
+# التعامل مع أزرار Inline
+# ======================
+@bot.callback_query_handler(func=lambda c: True)
+def handle_callbacks(c):
+    for module in cmd_modules.values():
+        if hasattr(module, "handle_callback"):
+            try:
+                module.handle_callback(bot, c)
+            except:
+                pass
+
+# ======================
+# تشغيل البوت
 # ======================
 bot.infinity_polling()

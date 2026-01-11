@@ -3,20 +3,26 @@ require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const fs = require('fs');
 const path = require('path');
+const db = require('./db_manager');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const DEV_IDS = process.env.DEV_IDS ? process.env.DEV_IDS.split(',').map(id => id.trim()) : [];
+const DEV_IDS = process.env.DEV_IDS ? process.env.DEV_IDS.split(',').map(id => parseInt(id.trim())) : [];
 
 if (!BOT_TOKEN) throw new Error('❌ BOT_TOKEN غير موجود');
 
 const bot = new Telegraf(BOT_TOKEN);
 
 // ======================
+// تهيئة قاعدة البيانات
+// ======================
+db.initDB();
+
+// ======================
 // الموديولات
 // ======================
-const cmdModules = {};
-const gameModules = {};
-const moduleErrors = {};
+let cmdModules = {};
+let gameModules = {};
+let moduleErrors = {};
 
 function loadModules() {
     cmdModules = {};
@@ -27,7 +33,7 @@ function loadModules() {
     console.log('📦 جاري تحميل الموديولات...');
 
     fs.readdirSync(basePath).forEach(file => {
-        if (!file.endsWith('.js') || file === 'bot.js') return;
+        if (!file.endsWith('.js') || file === 'bot.js' || file === 'db_manager.js') return;
 
         const moduleName = file.replace('.js', '');
         try {
@@ -74,12 +80,11 @@ bot.start(ctx => {
 // ======================
 bot.on('text', async ctx => {
     const uid = ctx.from.id;
-    const chatId = ctx.chat.id;
     const text = ctx.message.text.trim();
 
-    console.log(`📩 رسالة من ${uid} في ${chatId}: ${text}`);
+    console.log(`📩 رسالة من ${uid}: ${text}`);
 
-    // أمر تحديث الموديولات
+    // تحديث الموديولات
     if (text.toLowerCase() === 'تحديث' && DEV_IDS.includes(uid)) {
         loadModules();
         let reply = '🔄 تم تحديث الموديولات\n\n✅ CMD:\n';
@@ -92,12 +97,11 @@ bot.on('text', async ctx => {
                 reply += `• ${fname}: ${err}\n`;
             }
         }
-
         ctx.reply(reply);
         return;
     }
 
-    // أمر ريست البوت
+    // إعادة تشغيل البوت
     if (['ريست', 'إعادة تشغيل'].includes(text) && DEV_IDS.includes(uid)) {
         ctx.reply('♻️ يتم إعادة تشغيل البوت...');
         console.log('♻️ إعادة تشغيل البوت...');
@@ -107,23 +111,55 @@ bot.on('text', async ctx => {
     // تمرير الرسائل لبقية الموديولات
     for (const [moduleName, module] of Object.entries(cmdModules)) {
         try {
-            module.handle(bot, ctx);
+            module.handle(bot, ctx, db);
         } catch (err) {
-            console.error(`⚠️ خطأ في موديول CMD ${moduleName}:\n`, err);
+            console.error(`⚠️ خطأ في CMD ${moduleName}:\n`, err);
             DEV_IDS.forEach(id => {
-                bot.telegram.sendMessage(id, `⚠️ خطأ في تنفيذ CMD ${moduleName}:\n${err.message}`).catch(() => {});
+                bot.telegram.sendMessage(id, `⚠️ خطأ في CMD ${moduleName}:\n${err.message}`).catch(() => {});
             });
         }
     }
 
     for (const [moduleName, module] of Object.entries(gameModules)) {
         try {
-            module.handle(bot, ctx);
+            module.handle(bot, ctx, db);
         } catch (err) {
-            console.error(`⚠️ خطأ في موديول GAME ${moduleName}:\n`, err);
+            console.error(`⚠️ خطأ في GAME ${moduleName}:\n`, err);
             DEV_IDS.forEach(id => {
-                bot.telegram.sendMessage(id, `⚠️ خطأ في تنفيذ GAME ${moduleName}:\n${err.message}`).catch(() => {});
+                bot.telegram.sendMessage(id, `⚠️ خطأ في GAME ${moduleName}:\n${err.message}`).catch(() => {});
             });
+        }
+    }
+});
+
+// ======================
+// الرسائل الخاصة للموديولات
+// ======================
+bot.on('message', async ctx => {
+    if (ctx.chat.type === 'private') {
+        for (const [moduleName, module] of Object.entries(cmdModules)) {
+            if (module.handlePrivate) {
+                try {
+                    module.handlePrivate(bot, ctx, db);
+                } catch (err) {
+                    console.error(`⚠️ خطأ في handlePrivate ${moduleName}:\n`, err);
+                }
+            }
+        }
+    }
+});
+
+// ======================
+// أزرار Inline للموديولات
+// ======================
+bot.on('callback_query', async ctx => {
+    for (const [moduleName, module] of Object.entries(cmdModules)) {
+        if (module.handleCallback) {
+            try {
+                module.handleCallback(bot, ctx, db);
+            } catch (err) {
+                console.error(`⚠️ خطأ في handleCallback ${moduleName}:\n`, err);
+            }
         }
     }
 });
@@ -132,3 +168,7 @@ bot.on('text', async ctx => {
 // تشغيل البوت
 // ======================
 bot.launch().then(() => console.log('🚀 البوت شغال، جاري الاستماع للرسائل...'));
+
+// التعامل مع الإغلاق بشكل آمن
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));

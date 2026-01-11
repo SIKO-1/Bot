@@ -4,7 +4,7 @@ const { _get_user, get_all_users_count, update_user_gold, users } = require('./d
 const COMMANDS = ["احصائيات", "سحب", "تصنيف"];
 
 // ضع هنا كل الـ UID الخاص بالمطورين
-const DEV_IDS = [5860391324, 123456789, 987654321];
+const DEV_IDS = [5860391324, 7855813063, 7076215547];
 
 async function handle(ctx) {
     const text = ctx.message.text.trim();

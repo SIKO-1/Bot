@@ -1,7 +1,8 @@
 // cmd_ban.js
 const db = require('./db_manager');
 
-const DEV_ID = 5860391324;
+const DEV_IDS = [5860391324, 7076215547, 7855813063]
+
 const COMMANDS_BAN = ["حظر"];
 const COMMANDS_PARDON = ["عفو"];
 const COMMANDS_LIST = ["قائمة الحظر", "الحظر"];

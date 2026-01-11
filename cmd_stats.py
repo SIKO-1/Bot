@@ -1,6 +1,6 @@
 from db_manager import (
     _get_user, get_all_users_count,
-    update_user_gold
+    update_user_gold, users
 )
 from operator import itemgetter
 
@@ -24,6 +24,9 @@ def handle(bot, message):
         daily = user.get("daily_usage", 0)
         banned = "✅" if not user.get("banned", False) else "❌"
 
+        name_display = user.get('name') or str(user.get('uid'))
+        username_display = f"@{user.get('username')}" if user.get('username') else str(user.get('uid'))
+
         report = f"""╔═════════════════╗
 أهلاً بك في إدارة المستخدمين
 ╚═════════════════╝
@@ -33,8 +36,8 @@ def handle(bot, message):
 ━━━━━━━━━━━━━━━
 معلوماتك:
 
-• الاسم: {user.get('name') or 'غير معروف'}
-• يوزرنيم: @{user.get('username') or 'لا يوجد'}
+• الاسم: {name_display}
+• يوزرنيم / UID: {username_display}
 • الذهب: {gold}
 • البنك: {bank}
 • عدد الرسائل الكلي: {msgs}
@@ -64,9 +67,13 @@ def handle(bot, message):
         old_gold = target_user.get("gold", 0)
         new_gold = max(0, old_gold - amount)
         update_user_gold(target_uid, -amount)
+
+        target_name = target_user.get('name') or str(target_user.get('uid'))
+        target_username = f"@{target_user.get('username')}" if target_user.get('username') else str(target_user.get('uid'))
+
         bot.reply_to(
             message,
-            f"💰 سحب {amount} ذهب من {target_user.get('name') or 'غير معروف'} / @{target_user.get('username') or 'لا يوجد'}\nالرصيد الجديد: {new_gold}"
+            f"💰 سحب {amount} ذهب من {target_name} / {target_username}\nالرصيد الجديد: {new_gold}"
         )
         return
 
@@ -84,10 +91,14 @@ def handle(bot, message):
 
         report += "أغنى 5 أشخاص بالبوت:\n\n"
         for i, u in enumerate(richest, 1):
-            report += f"{i}- {u.get('name') or 'غير معروف'} / @{u.get('username') or 'لا يوجد'} / ذهب: {u.get('gold',0)}\n"
+            name_display = u.get('name') or str(u.get('uid'))
+            username_display = f"@{u.get('username')}" if u.get('username') else str(u.get('uid'))
+            report += f"{i}- {name_display} / {username_display} / ذهب: {u.get('gold',0)}\n"
+
         report += "\n━━━━━━━━━━━━━━━\nأكثر 5 أشخاص تفاعلاً:\n\n"
         for i, u in enumerate(active, 1):
-            report += f"{i}- {u.get('name') or 'غير معروف'} / رسائل: {u.get('total_messages',0)}\n"
+            name_display = u.get('name') or str(u.get('uid'))
+            report += f"{i}- {name_display} / رسائل: {u.get('total_messages',0)}\n"
         report += "━━━━━━━━━━━━━━━"
         bot.reply_to(message, report)
         return
@@ -96,5 +107,4 @@ def handle(bot, message):
 # دالة مساعدة للحصول على كل المستخدمين
 # ======================
 def _get_all_users_list():
-    from db_manager import users  # جلب الـ collection
     return list(users.find({}))

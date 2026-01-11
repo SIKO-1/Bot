@@ -1,16 +1,17 @@
-const DEV_IDS = process.env.DEV_IDS ? process.env.DEV_IDS.split(',').map(id => id.trim()) : [];
+// قائمة المطورين الأساسيين
+const DEV_IDS = ["5860391324", "7076215547", "7855813063"]; // كل المطورين الأساسيين
 
 const COMMANDS = ["إدارة", "ادارة", "شؤون الإدارة", "شؤون الادارة"];
 
 function handle(bot, ctx) {
     const text = ctx.message.text.trim();
     const user_name = ctx.from.first_name;
-    const user_id = ctx.from.id;
+    const user_id = ctx.from.id.toString(); // نضمن المقارنة كنص
 
     if (!COMMANDS.includes(text)) return;
 
-    if (!DEV_IDS.includes(user_id.toString())) {
-        // رسائل عشوائية مضحكة
+    // أي شخص مو ضمن المطورين ما يقدر يستخدم الأوامر
+    if (!DEV_IDS.includes(user_id)) {
         const funny_msgs = [
             `😂 أيُّهَا العَبْد! ${user_name}، البوابة مغلقة عنك… حاول مرة ثانية وستُطرد من الإمبراطورية!`,
             `🌚 ${user_name}، ما تحاول تفتح شؤون الإدارة… أو ستصبح مشعوذًا بدون عصاك!`,
@@ -23,7 +24,7 @@ function handle(bot, ctx) {
         return;
     }
 
-    // الرسالة الرسمية للمطور
+    // رسالة المطور الرسمية
     const admin_text = `
 ╔═════════════════╗
        إدارة البوت 

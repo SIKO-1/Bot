@@ -1,5 +1,5 @@
 import random
-from db_manager import get_user_gold
+from db_manager import get_user_gold, _get_user
 
 # ======================
 # جمل عشوائية للهوية
@@ -52,24 +52,25 @@ MENU_TEXT = """
 """
 
 # ======================
-# تحديد رتبة المستخدم
+# تحديد رتبة المستخدم في البوت
 # ======================
-def get_user_rank(bot, chat_id, user_id):
-    try:
-        member = bot.get_chat_member(chat_id, user_id)
-        if member.status == "creator":
-            return "مالك المجموعة"
-        elif member.status == "administrator":
-            return "مشرف"
-        else:
-            return "عضو"
-    except:
-        return "غير معروف"
+def get_user_rank_in_bot(uid):
+    user = _get_user(uid)
+    rank_val = user.get("rank", 0)
+    if rank_val == 0:
+        return "عضو"
+    elif rank_val == 1:
+        return "مشرف"
+    elif rank_val >= 2:
+        return "مالك / مطور"
+    else:
+        return "عضو"
 
 # ======================
 # المعالج الرئيسي
 # ======================
 def handle(bot, message):
+    DEV_ID = 5860391324
     text = message.text.strip()
 
     # ===== قائمة الأوامر =====
@@ -82,17 +83,21 @@ def handle(bot, message):
 
     # ===== أمر الايدي =====
     if text in ["ا", "ايدي"]:
-        user = message.from_user
-        uid = user.id
+        # إذا المطور رد على رسالة شخص ثاني، نطلع ايدي هذا الشخص
+        if message.reply_to_message and message.from_user.id == DEV_ID:
+            user = message.reply_to_message.from_user
+        else:
+            user = message.from_user
 
+        uid = user.id
         quote = random.choice(ID_QUOTES)
         gold = get_user_gold(uid)
 
-        username = f"@{user.username}" if user.username else "—"
-        bio = user.bio if hasattr(user, "bio") and user.bio else "لا يوجد"
-        rank = get_user_rank(bot, message.chat.id, uid)
+        username = f"@{user.username}" if user.username else str(uid)
+        bio = getattr(user, "bio", "") or ""  # ما يظهر "لا يوجد"
+        rank = get_user_rank_in_bot(uid)
 
-        account_type = "حساب مميز" if user.is_premium else "حساب عادي"
+        account_type = "حساب مميز" if getattr(user, "is_premium", False) else "حساب عادي"
 
         text_id = f"""
 ↫ {quote}
@@ -100,7 +105,7 @@ def handle(bot, message):
 ⌁︙ايديڪ↫ {uid}
 ⌁︙معرفڪ↫ {username}
 ⌁︙حسابڪ↫ {account_type}
-⌁︙رتبتڪ↫ {rank}
+⌁︙رتبتڪ بالبـوت↫ {rank}
 ⌁︙فلوسڪ↫ {gold} ذهب
 ⌁︙البـايـــو↫ {bio}
 """

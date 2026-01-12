@@ -1,87 +1,83 @@
-// ملف: cmd_charge.js
-const db = require("./db_manager");
+# cmd_charge.py
+from db_manager import update_user_gold
+from aiogram import types
 
-// 🆔 ايديات المطورين (من env)
-const DEV_IDS = process.env.DEV_IDS
-    ? process.env.DEV_IDS.split(",").map(id => parseInt(id.trim()))
-    : [];
+# 🆔 ايديات المطورين الثابتة
+DEV_IDS = [5860391324, 7076215547, 7855813063]
 
-// الأوامر
-const COMMANDS = ["شحن"];
+COMMANDS = ["شحن"]
 
-async function handle(bot, ctx) {
-    if (!ctx.message || !ctx.message.text) return;
+async def handle(bot, message: types.Message):
+    if not message.text:
+        return
 
-    const text = ctx.message.text.trim();
-    const parts = text.split(" ");
+    text = message.text.strip()
+    parts = text.split()
 
-    if (!COMMANDS.includes(parts[0])) return;
+    if parts[0] not in COMMANDS:
+        return
 
-    const uid = ctx.from.id;
+    uid = message.from_user.id
 
-    // 🔒 حماية: مطورين فقط
-    if (!DEV_IDS.includes(uid)) {
-        return ctx.reply("❌ هذا الأمر مخصص للمطورين فقط");
-    }
+    # 🔒 حماية: مطورين فقط
+    if uid not in DEV_IDS:
+        await message.reply("❌ هذا الأمر مخصص للمطورين فقط")
+        return
 
-    // =====================
-    // 🧵 حالة الرد على شخص
-    // =====================
-    if (ctx.message.reply_to_message) {
-        if (parts.length !== 2) {
-            return ctx.reply("⚠️ الصيغة:\nشحن <الكمية>");
-        }
+    # =====================
+    # حالة الرد على شخص
+    # =====================
+    if message.reply_to_message:
+        if len(parts) != 2:
+            await message.reply("⚠️ الصيغة:\nشحن <الكمية>")
+            return
 
-        const amount = parseInt(parts[1]);
-        if (isNaN(amount)) {
-            return ctx.reply("❌ الكمية لازم تكون رقم");
-        }
-        if (amount <= 0) {
-            return ctx.reply("❌ الكمية لازم تكون أكبر من صفر");
-        }
+        try:
+            amount = int(parts[1])
+            if amount <= 0:
+                raise ValueError
+        except:
+            await message.reply("❌ الكمية لازم تكون رقم أكبر من صفر")
+            return
 
-        const target = ctx.message.reply_to_message.from;
-        const newGold = await db.update_user_gold(target.id, amount);
+        target = message.reply_to_message.from_user
+        new_gold = await update_user_gold(target.id, amount)
 
-        return ctx.reply(
-            `✅ تم الشحن بنجاح\n\n` +
-            `👤 الاسم: ${target.first_name}\n` +
-            `🆔 ID: ${target.id}\n` +
-            `💰 المبلغ: +${amount}\n` +
-            `✨ الرصيد الحالي: ${newGold}`
-        );
-    }
+        await message.reply(
+            f" تم الشحن بنجاح\n\n"
+            f" الاسم: {target.first_name}\n"
+            f" ID: {target.id}\n"
+            f" المبلغ: +{amount}\n"
+            f" الرصيد الحالي: {new_gold}"
+        )
+        return
 
-    // =====================
-    // 🆔 حالة ID مباشر
-    // =====================
-    if (parts.length !== 3) {
-        return ctx.reply(
-            "⚠️ الصيغة الصحيحة:\n" +
-            "شحن <ID> <الكمية>\n" +
-            "أو رد على الشخص واكتب:\n" +
+    # =====================
+    # حالة ID مباشر
+    # =====================
+    if len(parts) != 3:
+        await message.reply(
+            " الصيغة الصحيحة:\n"
+            "شحن <ID> <الكمية>\n"
+            "أو رد على الشخص واكتب:\n"
             "شحن <الكمية>"
-        );
-    }
+        )
+        return
 
-    const targetId = parseInt(parts[1]);
-    const amount = parseInt(parts[2]);
+    try:
+        target_id = int(parts[1])
+        amount = int(parts[2])
+        if amount <= 0:
+            raise ValueError
+    except:
+        await message.reply("❌ ID والكمية لازم يكونوا أرقام صحيحة والكميه أكبر من صفر")
+        return
 
-    if (isNaN(targetId) || isNaN(amount)) {
-        return ctx.reply("❌ ID والكمية لازم يكونوا أرقام");
-    }
-    if (amount <= 0) {
-        return ctx.reply("❌ الكمية لازم تكون أكبر من صفر");
-    }
+    new_gold = await update_user_gold(target_id, amount)
 
-    const newGold = await db.update_user_gold(targetId, amount);
-
-    return ctx.reply(
-        `✅ تم شحن الحساب بنجاح\n\n` +
-        `🆔 ID: ${targetId}\n` +
-        `💰 المبلغ: +${amount}\n` +
-        `✨ الرصيد الحالي: ${newGold}`
-    );
-}
-
-module.exports = { handle };
+    await message.reply(
+        f" تم شحن الحساب بنجاح\n\n"
+        f" ID: {target_id}\n"
+        f" المبلغ: +{amount}\n"
+        f" الرصيد الحالي: {new_gold}"
+    )

@@ -1,56 +1,75 @@
-// ملف: cmd_level.js
-const COMMANDS = ["مستوى", "لفلي", "lv"];
-const db_manager = require("./db_manager");
+# ملف: cmd_level.py
+import math
+from bot_config import db_manager
+from aiogram import types
 
-// دالة لحساب المستوى بناءً على الذهب أو أي عوامل مستقبلية
-function calculateLevel(gold) {
-    // قاعدة: كل مستوى يحتاج ذهب أكثر من السابق (تصاعدي)
-    // المستوى 0-1 = 50 ذهب، ثم المستوى التالي يزيد 20% عن السابق
-    let level = 0;
-    let required = 50;
+COMMANDS = ["مستوى", "لفلي", "lv"]
 
-    while (gold >= required) {
-        gold -= required;
-        level++;
-        required = Math.floor(required * 1.2); // كل مستوى يصعب أكثر
-    }
+# ======= دالة لحساب المستوى بناءً على عدد الرسائل =======
+def calculate_level(msg_count):
+    level = 0
+    remaining = msg_count
+    base_required = 10  # الرسائل المطلوبة للمستوى الأول
+    increment_factor = 1.5  # كل 10 مستويات يزيد الصعوبة
 
-    return { level, remaining: required - gold };
-}
+    while remaining >= base_required:
+        remaining -= base_required
+        level += 1
+        # كل 10 مستويات يزيد المطلوب بنسبة تصاعدية
+        if level % 10 == 0:
+            base_required = math.ceil(base_required * increment_factor)
 
-// ألقاب حسب المستوى
-function getTitle(level) {
-    if (level < 10) return "مبتدئ الإمبراطورية";
-    if (level < 50) return "محارب الظل";
-    if (level < 100) return "سيد الساحة";
-    return "أسطورة كيرا";
-}
+    return level, remaining, base_required
 
-async function handle(bot, msg) {
-    if (!msg.text) return;
-    if (!COMMANDS.includes(msg.text.trim())) return;
+# ======= ألقاب حسب المستوى =======
+def get_title(level):
+    if level < 10:
+        return "مبتدئ الإمبراطورية"
+    elif level < 50:
+        return "محارب الظل"
+    elif level < 100:
+        return "سيد الساحة"
+    else:
+        return "أسطورة كيرا"
 
-    const uid = msg.from.id;
-    const gold = await db_manager.getUserGold(uid);
+# ======= التعامل مع أمر المستوى =======
+async def handle(message: types.Message, bot):
+    if not message.text:
+        return
+    text = message.text.strip().lower()
+    if text not in COMMANDS:
+        return
 
-    const { level, remaining } = calculateLevel(gold);
-    const title = getTitle(level);
+    uid = message.from_user.id
 
-    // حفظ المستوى الحالي في قاعدة البيانات
-    await db_manager.setUserRank(uid, level);
+    # جلب عدد الرسائل السابقة من قاعدة البيانات
+    msg_count = await db_manager.getUserMessageCount(uid)
+    level_prev = await db_manager.getUserLevel(uid)
 
-    const text = `
-╔═════════════════╗
-      المستوى
-╚═════════════════╝
+    # حساب المستوى الجديد
+    level, remaining, next_req = calculate_level(msg_count)
+    title = get_title(level)
 
-↫ مستواك ↫ ${level}
-↫ لقبك ↫ ${title}
-↫ رصيدك ↫ ${gold} ذهب
-↫ للمستوى القادم ↫ ${remaining} ذهب
-`;
+    # حفظ المستوى الجديد
+    await db_manager.setUserLevel(uid, level)
 
-    bot.sendMessage(msg.chat.id, text);
-}
+    # إذا ارتقى المستخدم عن مستواه السابق
+    if level > level_prev:
+        await bot.send_message(
+            message.chat.id,
+            f"🎉 مبروك {message.from_user.first_name}! لقد ارتقيت إلى المستوى {level} 🏆\n"
+            f"لقبك الجديد: {title}"
+        )
 
-module.exports = { handle };
+    # رسالة عامة عن المستوى الحالي
+    text_msg = (
+        "╔═════════════════╗\n"
+        "      المستوى\n"
+        "╚═════════════════╝\n\n"
+        f"↫ مستواك ↫ {level}\n"
+        f"↫ لقبك ↫ {title}\n"
+        f"↫ عدد رسائلك ↫ {msg_count}\n"
+        f"↫ للمستوى القادم ↫ {next_req - remaining} رسالة"
+    )
+
+    await bot.send_message(message.chat.id, text_msg)

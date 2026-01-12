@@ -1,10 +1,19 @@
-// ملف: cmd_birthdays.js
-const fs = require("fs");
-const path = require("path");
-const { Telegraf } = require("telegraf");
-const db = require("./db_manager");
+# cmd_birthdays.py
+import asyncio
+import random
+from datetime import datetime
+from aiogram import types
+from db_manager import (
+    add_birthday,
+    remove_birthday,
+    get_birthday,
+    list_birthdays,
+    enable_birthday_auto,
+    disable_birthday_auto,
+    is_birthday_auto_enabled
+)
 
-const COMMANDS = [
+COMMANDS = [
     "اضف عيد",
     "مسح عيد",
     "عيد ميلاد",
@@ -12,154 +21,130 @@ const COMMANDS = [
     "تفعيل عيد ميلاد",
     "تعطيل عيد ميلاد",
     "زواج"
-];
+]
 
-const CHECK_INTERVAL = 5 * 60 * 1000; // 5 دقائق
+CHECK_INTERVAL = 300  # 5 دقائق
 
-// =====================
-// أوامر المستخدم
-// =====================
-async function handle(bot, ctx) {
-    if (!ctx.message || !ctx.message.text) return;
+# ===========================
+# معالجة الرسائل
+# ===========================
+async def handle(bot, message: types.Message):
+    text = message.text.strip()
+    uid = message.from_user.id
 
-    const text = ctx.message.text.trim();
-    const uid = ctx.from.id;
+    # ===== إضافة عيد =====
+    if text.startswith("اضف عيد"):
+        parts = text.split()
+        if len(parts) < 5:
+            await message.reply("❌ الصيغة: اضف عيد <ID> <اليوم> <الشهر> [السنة]")
+            return
 
-    try {
-        // ===== إضافة عيد =====
-        if (text.startsWith("اضف عيد")) {
-            const parts = text.split(" ");
-            if (parts.length < 5) {
-                return ctx.reply("❌ الصيغة: اضف عيد <ID> <اليوم> <الشهر> [السنة]");
-            }
+        target_uid = int(parts[2])
+        day = int(parts[3])
+        month = int(parts[4])
+        year = int(parts[5]) if len(parts) > 5 else None
 
-            const targetUid = Number(parts[2]);
-            const day = Number(parts[3]);
-            const month = Number(parts[4]);
-            const year = parts[5] ? Number(parts[5]) : null;
+        res = await add_birthday(target_uid, day, month, year)
+        if res.get("ok"):
+            await message.reply(f"✅ تم إضافة عيد الميلاد\nUID: {target_uid}\n📅 {day}/{month}/{year or '؟'}")
+        else:
+            await message.reply(res.get("error", "❌ خطأ أثناء الإضافة"))
+        return
 
-            const res = await db.add_birthday(targetUid, day, month, year);
-            if (res.ok) {
-                ctx.reply(`✅ تم إضافة عيد الميلاد\nUID: ${targetUid}\n📅 ${day}/${month}/${year ?? "؟"}`);
-            } else {
-                ctx.reply(res.error);
-            }
-        }
+    # ===== مسح عيد =====
+    if text.startswith("مسح عيد"):
+        parts = text.split()
+        if len(parts) < 3:
+            await message.reply("❌ الصيغة: مسح عيد <ID>")
+            return
+        await remove_birthday(int(parts[2]))
+        await message.reply("✅ تم مسح عيد الميلاد")
+        return
 
-        // ===== مسح عيد =====
-        else if (text.startsWith("مسح عيد")) {
-            const parts = text.split(" ");
-            if (parts.length < 3) {
-                return ctx.reply("❌ الصيغة: مسح عيد <ID>");
-            }
+    # ===== عرض عيد =====
+    if text.startswith("عيد ميلاد"):
+        parts = text.split()
+        if len(parts) < 3:
+            await message.reply("❌ الصيغة: عيد ميلاد <ID>")
+            return
 
-            await db.remove_birthday(Number(parts[2]));
-            ctx.reply("✅ تم مسح عيد الميلاد");
-        }
+        bd = await get_birthday(int(parts[2]))
+        if not bd:
+            await message.reply("⚠️ ما مسجل عيد ميلاد")
+            return
 
-        // ===== عرض عيد =====
-        else if (text.startsWith("عيد ميلاد")) {
-            const parts = text.split(" ");
-            if (parts.length < 3) {
-                return ctx.reply("❌ الصيغة: عيد ميلاد <ID>");
-            }
+        await message.reply(f"🎂 عيد الميلاد:\n📅 {bd['day']}/{bd['month']}/{bd.get('year','؟')}")
+        return
 
-            const bd = await db.get_birthday(Number(parts[2]));
-            if (!bd) return ctx.reply("⚠️ ما مسجل عيد ميلاد");
+    # ===== قائمة الاعياد =====
+    if text == "قائمه الاعياد":
+        birthdays = await list_birthdays()
+        if not birthdays:
+            await message.reply("⚠️ ماكو أعياد مسجلة")
+            return
 
-            ctx.reply(
-                `🎂 عيد الميلاد:\n📅 ${bd.day}/${bd.month}/${bd.year ?? "؟"}`
-            );
-        }
+        msg = "🎉 قائمة الأعياد:\n\n"
+        for b in birthdays:
+            bd = b['birthday']
+            msg += f"• {b['uid']} → {bd['day']}/{bd['month']}/{bd.get('year','؟')}\n"
+        await message.reply(msg)
+        return
 
-        // ===== قائمة =====
-        else if (text === "قائمه الاعياد") {
-            const list = await db.list_birthdays();
-            if (!list.length) return ctx.reply("⚠️ ماكو أعياد مسجلة");
+    # ===== تفعيل / تعطيل =====
+    if text == "تفعيل عيد ميلاد":
+        await enable_birthday_auto(uid)
+        await message.reply("✅ تم التفعيل")
+        return
 
-            let msg = "🎉 قائمة الأعياد:\n\n";
-            for (const b of list) {
-                msg += `• ${b.uid} → ${b.birthday.day}/${b.birthday.month}/${b.birthday.year ?? "؟"}\n`;
-            }
-            ctx.reply(msg);
-        }
+    if text == "تعطيل عيد ميلاد":
+        await disable_birthday_auto(uid)
+        await message.reply("🚫 تم التعطيل")
+        return
 
-        // ===== تفعيل / تعطيل =====
-        else if (text === "تفعيل عيد ميلاد") {
-            await db.enable_birthday_auto(uid);
-            ctx.reply("✅ تم التفعيل");
-        }
+    # ===== زواج =====
+    if text == "زواج":
+        if not message.reply_to_message:
+            await message.reply("💍 رد على رسالة الشخص حتى أزوجكم 😏")
+            return
 
-        else if (text === "تعطيل عيد ميلاد") {
-            await db.disable_birthday_auto(uid);
-            ctx.reply("🚫 تم التعطيل");
-        }
+        user1 = message.from_user.first_name
+        user2 = message.reply_to_message.from_user.first_name
 
-        // =====================
-        // 💍 زواج عشوائي
-        // =====================
-        else if (text === "زواج") {
-            if (!ctx.message.reply_to_message) {
-                return ctx.reply("💍 رد على رسالة الشخص حتى أزوجكم 😏");
-            }
+        captions = [
+            f"💍 مبروك الزواج!\n{user1} ❤️ {user2}\nالله بالخير 👰🤵",
+            f"😂 تم عقد القِران!\n{user1} × {user2}\nزواج ميمز رسمي",
+            f"👑 زوجين VIP\n{user1} 🤍 {user2}"
+        ]
 
-            const user1 = ctx.from;
-            const user2 = ctx.message.reply_to_message.from;
+        caption = random.choice(captions)
+        await message.reply(caption)
+        return
 
-            const captions = [
-                `💍 مبروك الزواج!\n${user1.first_name} ❤️ ${user2.first_name}\nالله بالخير 👰🤵`,
-                `😂 تم عقد القِران!\n${user1.first_name} × ${user2.first_name}\nزواج ميمز رسمي`,
-                `👑 زوجين VIP\n${user1.first_name} 🤍 ${user2.first_name}`
-            ];
+# ===========================
+# جدولة تهاني عيد الميلاد
+# ===========================
+async def birthday_scheduler(bot):
+    while True:
+        today = datetime.today()
+        birthdays = await list_birthdays()
 
-            const memesDir = path.join(__dirname, "assets", "marriage");
-            const images = fs.readdirSync(memesDir);
-            const randomImg = images[Math.floor(Math.random() * images.length)];
-            const caption = captions[Math.floor(Math.random() * captions.length)];
+        for b in birthdays:
+            bd = b["birthday"]
+            if bd["day"] == today.day and bd["month"] == today.month:
+                if not await is_birthday_auto_enabled(b["uid"]):
+                    continue
 
-            await ctx.replyWithPhoto(
-                { source: path.join(memesDir, randomImg) },
-                { caption }
-            );
-        }
+                try:
+                    # ===== رسالة خاصة مع صورة عيد ميلاد تلقائية =====
+                    img_path = f"assets/birthday_{random.randint(1,5)}.jpg"  # صور مخصصة 1-5
+                    caption = f"🎉 كل عام وأنت بخير!\n🎂 عيد ميلاد سعيد"
+                    await bot.send_photo(b["uid"], photo=open(img_path, "rb"), caption=caption)
 
-    } catch (err) {
-        ctx.reply("❌ صار خطأ غير متوقع");
-    }
-}
+                    # ===== ميزة مميزة: رسالة جماعية في المجموعات =====
+                    # لو تضيف قاعدة بيانات بالمجموعات لكل UID، نقدر نفعل التالي:
+                    # for group_id in await get_user_groups(b["uid"]):
+                    #     await bot.send_message(group_id, f"🎉 اليوم عيد ميلاد {b['uid']}! 🎂")
+                except:
+                    continue
 
-// =====================
-// 🎂 جدولة التهاني
-// =====================
-function startBirthdayScheduler(bot) {
-    setInterval(async () => {
-        const today = new Date();
-        const list = await db.list_birthdays();
-
-        for (const b of list) {
-            const bd = b.birthday;
-            if (bd.day === today.getDate() && bd.month === today.getMonth() + 1) {
-
-                if (!(await db.is_birthday_auto_enabled(b.uid))) continue;
-
-                try {
-                    const user = await bot.telegram.getChat(b.uid);
-                    const msg = `🎉 كل عام وأنت بخير ${user.first_name}!\n🎂 عيد ميلاد سعيد`;
-
-                    const imgPath = path.join(__dirname, "assets", "birthday.jpg");
-
-                    if (fs.existsSync(imgPath)) {
-                        await bot.telegram.sendPhoto(b.uid, { source: imgPath }, { caption: msg });
-                    } else {
-                        await bot.telegram.sendMessage(b.uid, msg);
-                    }
-                } catch {}
-            }
-        }
-    }, CHECK_INTERVAL);
-}
-
-module.exports = {
-    handle,
-    startBirthdayScheduler
-};
+        await asyncio.sleep(CHECK_INTERVAL)

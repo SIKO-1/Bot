@@ -1,11 +1,11 @@
-// ملف: cmd_quotes.js
-const TeleBot = require('telebot');
-const bot = new TeleBot(); // يفترض انك تمرر البوت من ملف رئيسي إذا تريد
+import asyncio
+import random
+from aiogram import types
 
-// ======================
-// كل الاقتباسات (200 اقتباس)
-// ======================
-const QUOTES = [
+# ======================
+# كل الاقتباسات (200 اقتباس)
+# ======================
+QUOTES = [
     "كن أنت، فالجميع أُخذوا بالفعل.",
     "العقل الهادئ يرى ما لا يراه الغاضب.",
     "أحيانًا النجاة هي أعظم انتصار.",
@@ -146,55 +146,53 @@ const QUOTES = [
     "التفكير مسؤولية وجود.",
     "الفهم نور الطريق.",
     "الصمت احترام للنفس."
-];
+]
 
-// ======================
-// الإعدادات
-// ======================
-let quotes_enabled = false;
-const quotes_interval = 3600 * 1000; // 1 ساعة بالميلي ثانية
+# ======================
+# إعدادات
+# ======================
+quotes_enabled = False
+quotes_interval = 3600  # ثانية (1 ساعة)
 
-// ======================
-// جدولة الاقتباسات
-// ======================
-function quotes_scheduler(bot, chat_id) {
-    setInterval(() => {
-        if (quotes_enabled) {
-            const quote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
-            bot.sendMessage(chat_id, `📝 اقتباس:\n\n${quote}`);
-        }
-    }, quotes_interval);
-}
+# ======================
+# مهمة جدولة الاقتباسات
+# ======================
+async def quotes_scheduler(bot, chat_id):
+    global quotes_enabled
+    while quotes_enabled:
+        quote = random.choice(QUOTES)
+        try:
+            await bot.send_message(chat_id, f"📝 اقتباس:\n\n{quote}")
+        except:
+            pass
+        await asyncio.sleep(quotes_interval)
 
-// ======================
-// التعامل مع الرسائل
-// ======================
-function handle(bot, message) {
-    if (!message.text) return;
-    const text = message.text.trim();
+# ======================
+# التعامل مع الرسائل
+# ======================
+async def handle(bot, message: types.Message):
+    global quotes_enabled
+    text = message.text
+    if not text:
+        return
 
-    if (text === "اقتباس") {
-        const quote = QUOTES[Math.floor(Math.random() * QUOTES.length)];
-        bot.sendMessage(message.chat.id, `📝 اقتباس:\n\n${quote}`);
-        return;
-    }
+    text = text.strip()
 
-    if (text === "تفعيل اقتباس") {
-        if (quotes_enabled) {
-            bot.sendMessage(message.chat.id, "✅ الاقتباس مفعّل بالفعل.");
-            return;
-        }
-        quotes_enabled = true;
-        quotes_scheduler(bot, message.chat.id);
-        bot.sendMessage(message.chat.id, "🟢 تم تفعيل الاقتباسات (كل ساعة).");
-        return;
-    }
+    if text == "اقتباس":
+        quote = random.choice(QUOTES)
+        await message.reply(f"📝 اقتباس:\n\n{quote}")
+        return
 
-    if (text === "تعطيل اقتباس") {
-        quotes_enabled = false;
-        bot.sendMessage(message.chat.id, "🔴 تم تعطيل الاقتباسات.");
-        return;
-    }
-}
+    elif text == "تفعيل اقتباس":
+        if quotes_enabled:
+            await message.reply("✅ الاقتباس مفعّل بالفعل.")
+            return
+        quotes_enabled = True
+        asyncio.create_task(quotes_scheduler(bot, message.chat.id))
+        await message.reply("🟢 تم تفعيل الاقتباسات (كل ساعة).")
+        return
 
-module.exports = { handle };
+    elif text == "تعطيل اقتباس":
+        quotes_enabled = False
+        await message.reply("🔴 تم تعطيل الاقتباسات.")
+        return

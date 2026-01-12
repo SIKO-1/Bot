@@ -1,4 +1,4 @@
-# db_manager.py
+# ملف: db_manager.py
 import motor.motor_asyncio
 import time
 
@@ -29,17 +29,12 @@ async def get_user(uid, name=None, username=None):
             "gold": 0,
             "bank": 0,
             "points": 0,
-            "inventory": [],
             "rank": 0,
-            "last_task_time": 0,
-            "daily_task": None,
-            "box_ready": False,
-            "box_opened": False,
             "last_gift_time": 0,
-            "banned": False,
+            "total_messages": 0,
+            "level": 0,
             "name": name,
             "username": username,
-            "total_messages": 0,
             "married_to": None,
             "birthday": None,
             "birthday_auto": True
@@ -96,31 +91,6 @@ async def withdraw_from_bank(uid, amount):
     return True
 
 # ======================
-# المخزون
-# ======================
-async def get_inventory(uid):
-    user = await get_user(uid)
-    return user.get("inventory", [])
-
-async def add_to_inventory(uid, item, quantity=1):
-    user = await get_user(uid)
-    new_inv = user.get("inventory", []) + [item]*quantity
-    await users_col.update_one({"uid": uid}, {"$set": {"inventory": new_inv}})
-
-async def remove_from_inventory(uid, item, quantity=1):
-    user = await get_user(uid)
-    inv = user.get("inventory", [])
-    count = 0
-    new_inv = []
-    for i in inv:
-        if i == item and count < quantity:
-            count += 1
-            continue
-        new_inv.append(i)
-    await users_col.update_one({"uid": uid}, {"$set": {"inventory": new_inv}})
-    return count == quantity
-
-# ======================
 # الرتب
 # ======================
 async def get_user_rank(uid):
@@ -131,63 +101,40 @@ async def set_user_rank(uid, rank):
     await users_col.update_one({"uid": uid}, {"$set": {"rank": rank}})
 
 # ======================
-# المهام اليومية والهدايا
+# الهدايا اليومية
 # ======================
 DAY = 86400
 
-TASKS = [
-    {"type": "dice", "desc": "العب لعبة النرد 🎲"},
-    {"type": "roulette", "desc": "العب روليت 🎰"}
-]
-
-async def can_get_task(uid):
+async def can_take_gift(uid):
     user = await get_user(uid)
-    return time.time() - user.get("last_task_time", 0) >= DAY
-
-async def get_daily_task(uid):
-    user = await get_user(uid)
-    if user.get("daily_task"):
-        return user["daily_task"]
-    if not await can_get_task(uid):
-        return None
-    import random
-    task = random.choice(TASKS)
-    await users_col.update_one(
-        {"uid": uid},
-        {"$set": {"daily_task": task, "last_task_time": time.time(), "box_ready": False, "box_opened": False}}
-    )
-    return task
-
-async def complete_mission(uid, mission_type):
-    user = await get_user(uid)
-    if not user.get("daily_task") or user["daily_task"]["type"] != mission_type:
-        return False
-    await users_col.update_one({"uid": uid}, {"$set": {"box_ready": True, "daily_task": None}})
-    return True
+    return time.time() - user.get("last_gift_time", 0) >= DAY
 
 async def take_gift(uid, amount=100):
-    user = await get_user(uid)
-    if time.time() - user.get("last_gift_time", 0) < DAY:
+    if not await can_take_gift(uid):
         return None
     await update_user_gold(uid, amount)
     await users_col.update_one({"uid": uid}, {"$set": {"last_gift_time": time.time()}})
     return await get_user_gold(uid)
 
 # ======================
-# الحظر (بالمحادثات الخاصة)
+# الرسائل والمستوى
 # ======================
-async def is_user_banned(uid):
+async def get_user_message_count(uid):
     user = await get_user(uid)
-    return user.get("banned", False)
+    return user.get("total_messages", 0)
 
-async def ban_user(uid):
-    await users_col.update_one({"uid": uid}, {"$set": {"banned": True}})
+async def increment_user_message(uid):
+    await users_col.update_one({"uid": uid}, {"$inc": {"total_messages": 1}}, upsert=True)
 
-async def unban_user(uid):
-    await users_col.update_one({"uid": uid}, {"$set": {"banned": False}})
+async def get_user_level(uid):
+    user = await get_user(uid)
+    return user.get("level", 0)
+
+async def set_user_level(uid, level):
+    await users_col.update_one({"uid": uid}, {"$set": {"level": level}}, upsert=True)
 
 # ======================
-# الكتم والطرد بالمجموعات
+# المجموعات: كتم وطرد
 # ======================
 async def mute_user(chat_id, user_id):
     group = await groups_col.find_one({"chat_id": chat_id})
@@ -216,7 +163,6 @@ async def kick_user(chat_id, user_id):
     if user_id not in group["kicked"]:
         group["kicked"].append(user_id)
         await groups_col.update_one({"chat_id": chat_id}, {"$set": {"kicked": group["kicked"]}})
-    # لا تحذف بياناته من قاعدة المستخدمين، فقط طرد من المجموعة
 
 async def get_muted_users(chat_id):
     group = await groups_col.find_one({"chat_id": chat_id})
@@ -231,9 +177,9 @@ async def get_kicked_users(chat_id):
 # ======================
 __all__ = [
     "DEVELOPERS", "get_user", "get_user_gold", "update_user_gold", "get_user_points", "update_user_points",
-    "get_inventory", "add_to_inventory", "remove_from_inventory", "get_user_rank", "set_user_rank",
-    "can_get_task", "get_daily_task", "complete_mission", "take_gift",
-    "is_user_banned", "ban_user", "unban_user",
+    "get_user_rank", "set_user_rank",
+    "can_take_gift", "take_gift",
+    "get_user_message_count", "increment_user_message", "get_user_level", "set_user_level",
     "mute_user", "unmute_user", "is_user_muted", "kick_user",
     "get_muted_users", "get_kicked_users"
 ]

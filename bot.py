@@ -5,7 +5,14 @@ import importlib
 from pathlib import Path
 from dotenv import load_dotenv
 from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    CallbackQueryHandler,
+    ContextTypes,
+)
 
 # ======================
 # إعداد البيئة
@@ -13,18 +20,18 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
-    raise Exception("❌ BOT_TOKEN غير موجود")
+    raise Exception("❌ BOT_TOKEN غير موجود في .env")
 
 # ======================
 # المطورين
 # ======================
-DEV_IDS = [5860391324, 7076215547, 7855813063]
+DEV_IDS = [5860391324, 7076215547, 7855813063]  # أضف مطورينك هنا
 
 # ======================
 # قاعدة البيانات
 # ======================
 import db_manager
-db_manager.init_db()
+db_manager.init_db()  # تأكد أن db_manager.py يحتوي على init_db()
 
 # ======================
 # تحميل الموديولات
@@ -34,6 +41,7 @@ game_modules = {}
 module_errors = {}
 
 def load_modules():
+    """تحميل كل الملفات cmd_ و game_ الموجودة في نفس المسار"""
     global cmd_modules, game_modules, module_errors
     cmd_modules.clear()
     game_modules.clear()
@@ -43,7 +51,9 @@ def load_modules():
     print("📦 جاري تحميل الموديولات...")
 
     for file in base_path.iterdir():
-        if not file.suffix == ".py" or file.name in ["bot.py", "db_manager.py"]:
+        if not file.suffix == ".py":
+            continue
+        if file.name in ["bot.py", "db_manager.py"]:
             continue
 
         module_name = file.stem
@@ -54,13 +64,14 @@ def load_modules():
             if hasattr(spec, "handle"):
                 if module_name.startswith("cmd_"):
                     cmd_modules[module_name] = spec
-                if module_name.startswith("game_"):
+                elif module_name.startswith("game_"):
                     game_modules[module_name] = spec
 
             print(f"✅ تم تحميل: {module_name}")
         except Exception as e:
             module_errors[module_name] = str(e)
             print(f"⚠️ خطأ تحميل {module_name}: {e}")
+            # إرسال رسالة للمطورين
             for dev_id in DEV_IDS:
                 try:
                     bot = Bot(BOT_TOKEN)
@@ -68,6 +79,7 @@ def load_modules():
                 except:
                     pass
 
+# أول تحميل
 load_modules()
 
 # ======================
@@ -81,7 +93,7 @@ def is_developer(uid):
 # ======================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"📩 /start من {update.effective_user.id}")
-    await update.message.reply_text("👑 البوت شغال.")
+    await update.message.reply_text("👑 البوت شغال وجاهز للهيبة الإمبراطورية!")
 
 # ======================
 # /update_modules
@@ -89,7 +101,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def update_modules(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if not is_developer(uid):
-        return
+        return await update.message.reply_text("❌ هذا الأمر للمطورين فقط")
 
     load_modules()
     reply = "🔄 تم تحديث الموديولات\n\n✅ CMD:\n"
@@ -116,7 +128,7 @@ async def shutdown(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if is_developer(uid):
-        await update.message.reply_text("♻️ إعادة تشغيل...")
+        await update.message.reply_text("♻️ إعادة تشغيل البوت...")
         print("♻️ إعادة تشغيل...")
         os.execv(sys.executable, ["python"] + sys.argv)
 
@@ -124,46 +136,51 @@ async def restart(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # التعامل مع الرسائل النصية
 # ======================
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    text = update.message.text.strip()
+    bot = context.bot
+    message = update.message
 
-    # تمرير للأوامر
+    # تمرير الرسالة لكل أوامر CMD
     for module in cmd_modules.values():
         if hasattr(module, "handle"):
             try:
-                await module.handle(update, context, db_manager, DEV_IDS)
+                await module.handle(bot, message)
             except Exception as e:
                 print("⚠️ خطأ CMD:", e)
 
+    # تمرير الرسالة لكل أوامر GAME
     for module in game_modules.values():
         if hasattr(module, "handle"):
             try:
-                await module.handle(update, context, db_manager, DEV_IDS)
+                await module.handle(bot, message)
             except Exception as e:
                 print("⚠️ خطأ GAME:", e)
 
 # ======================
-# أزرار Inline
+# التعامل مع CallbackQuery
 # ======================
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for module in cmd_modules.values():
         if hasattr(module, "handle_callback"):
             try:
-                await module.handle_callback(update, context, db_manager, DEV_IDS)
+                await module.handle_callback(update, context)
             except Exception as e:
                 print("⚠️ خطأ Callback:", e)
 
 # ======================
-# بناء البوت وتشغيله
+# تشغيل البوت
 # ======================
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-# الأوامر الأساسية
+# أوامر أساسية
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("update_modules", update_modules))
 app.add_handler(CommandHandler("shutdown", shutdown))
 app.add_handler(CommandHandler("restart", restart))
+
+# رسائل نصية
 app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text))
+
+# أزرار Inline
 app.add_handler(CallbackQueryHandler(handle_callback))
 
 print("🚀 البوت شغال وبكامل الهيبة")
